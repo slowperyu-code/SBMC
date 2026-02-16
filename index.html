@@ -1762,21 +1762,21 @@ self.onmessage = function(e) {
                 const edc = schroederIntegration(filtered);
                 
                 const rtResult = calculateRT(edc, sampleRate);
-                log(\`RT計算完了 \${i+1}/6\`, { 
+                log(`RT計算完了 ${i+1}/6\`, { 
                     method: rtResult.method, 
                     value: rtResult.value,
                     quality: rtResult.quality
                 });
                 
                 const snr = calculateSNR(filtered, noiseFloor);
-                log(\`SNR計算完了 \${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
+                log(`SNR計算完了 ${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
                 
                 rt60Results.push(rtResult.value);
                 snrResults.push(snr);
                 methodsUsed.push(rtResult.method);
                 qualityLevels.push(rtResult.quality);
                 
-                log(\`===== 帯域 \${i+1}/6 処理完了 =====\`);
+                log(`===== 帯域 \${i+1}/6 処理完了 =====`);
             }
             
             log('全帯域処理完了');
@@ -1790,7 +1790,7 @@ self.onmessage = function(e) {
             
             if (minSNR < 15) {
                 overallQuality = 'poor';
-                qualityReason = \`S/N比不足（\${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。\`;
+                qualityReason = `S/N比不足（${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。`;
             }
             
             const successCount = rt60Results.filter(rt => rt !== null).length;
@@ -1798,7 +1798,7 @@ self.onmessage = function(e) {
             
             if (successCount < 4) {
                 overallQuality = 'poor';
-                qualityReason = \`測定成功率が低すぎます（\${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。\`;
+                qualityReason = `測定成功率が低すぎます（${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。`;
             }
             
             const validRT60 = rt60Results.filter(rt => rt !== null && rt >= 0.05 && rt <= 5.0);
