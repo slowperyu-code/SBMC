@@ -1312,16 +1312,154 @@ function log(message, data) {
 }
 
 // ========================================
+// 品質チェック関数（新規追加）
+// ========================================
+function assessRecordingQuality(recordedData, sampleRate, noiseFloor) {
+    log('=== 録音品質評価開始 ===');
+    
+    const quality = {
+        passed: false,
+        level: 'poor',
+        snr: 0,
+        dynamicRange: 0,
+        peakValue: 0,
+        clippingRatio: 0,
+        expectedMethod: 'failed',
+        issues: [],
+        details: {}
+    };
+    
+    // 1. ピーク検出とクリッピングチェック
+    let maxValue = 0;
+    let minValue = 0;
+    let clippingCount = 0;
+    const CLIPPING_THRESHOLD = 0.99;
+    
+    for (let i = 0; i < recordedData.length; i++) {
+        const value = recordedData[i];
+        maxValue = Math.max(maxValue, Math.abs(value));
+        minValue = Math.min(minValue, value);
+        
+        if (Math.abs(value) > CLIPPING_THRESHOLD) {
+            clippingCount++;
+        }
+    }
+    
+    quality.peakValue = maxValue;
+    quality.clippingRatio = (clippingCount / recordedData.length) * 100;
+    
+    log('ピーク検出完了', {
+        peak: maxValue.toFixed(4),
+        clipping: quality.clippingRatio.toFixed(2) + '%'
+    });
+    
+    // 2. S/N比計算
+    let signalPower = 0;
+    const signalStart = Math.floor(recordedData.length * 0.1); // 最初の10%をスキップ
+    const signalEnd = Math.floor(recordedData.length * 0.6);   // 60%地点まで
+    const signalLength = signalEnd - signalStart;
+    
+    for (let i = signalStart; i < signalEnd; i++) {
+        signalPower += recordedData[i] * recordedData[i];
+    }
+    signalPower /= signalLength;
+    
+    const noisePower = noiseFloor * noiseFloor;
+    quality.snr = 10 * Math.log10(signalPower / noisePower);
+    
+    log('S/N比計算完了', { snr: quality.snr.toFixed(1) + 'dB' });
+    
+    // 3. ダイナミックレンジ推定（減衰の観測）
+    // 後半のノイズレベルを推定
+    const tailStart = Math.floor(recordedData.length * 0.8);
+    let tailPower = 0;
+    
+    for (let i = tailStart; i < recordedData.length; i++) {
+        tailPower += recordedData[i] * recordedData[i];
+    }
+    tailPower /= (recordedData.length - tailStart);
+    
+    const tailLevel = Math.sqrt(tailPower);
+    quality.dynamicRange = 20 * Math.log10(maxValue / Math.max(tailLevel, 1e-10));
+    
+    log('ダイナミックレンジ計算完了', { 
+        range: quality.dynamicRange.toFixed(1) + 'dB' 
+    });
+    
+    // 4. データの健全性チェック
+    if (maxValue < 0.001) {
+        quality.issues.push('信号レベルが極端に低い（スピーカー音量を上げてください）');
+    }
+    
+    if (quality.clippingRatio > 1.0) {
+        quality.issues.push('クリッピング発生（スピーカー音量を下げてください）');
+    }
+    
+    if (maxValue < 0.01 && quality.clippingRatio === 0) {
+        quality.issues.push('信号レベル不足（マイクとスピーカーの距離を近づけてください）');
+    }
+    
+    // 5. 品質レベルの判定（ISO 3382-2 準拠）
+    quality.details = {
+        snr: quality.snr,
+        dynamicRange: quality.dynamicRange,
+        peakValue: maxValue,
+        clipping: quality.clippingRatio
+    };
+    
+    // T60測定可能レベル（理想）
+    if (quality.snr >= 45 && quality.dynamicRange >= 60 && quality.clippingRatio < 0.1) {
+        quality.level = 'excellent';
+        quality.expectedMethod = 'T60';
+        quality.passed = true;
+    }
+    // T30測定可能レベル（推奨）
+    else if (quality.snr >= 30 && quality.dynamicRange >= 35 && quality.clippingRatio < 0.5) {
+        quality.level = 'good';
+        quality.expectedMethod = 'T30';
+        quality.passed = true;
+    }
+    // T20測定可能レベル（最低基準）
+    else if (quality.snr >= 20 && quality.dynamicRange >= 25 && quality.clippingRatio < 1.0) {
+        quality.level = 'acceptable';
+        quality.expectedMethod = 'T20';
+        quality.passed = true;
+    }
+    // 基準未満（再測定が必要）
+    else {
+        quality.level = 'poor';
+        quality.expectedMethod = 'failed';
+        quality.passed = false;
+        
+        // 具体的な改善提案
+        if (quality.snr < 20) {
+            quality.issues.push(\`S/N比不足: \${quality.snr.toFixed(1)}dB（推奨: 20dB以上）環境ノイズを減らすか、スピーカー音量を上げてください\`);
+        }
+        
+        if (quality.dynamicRange < 25) {
+            quality.issues.push(\`ダイナミックレンジ不足: \${quality.dynamicRange.toFixed(1)}dB（推奨: 25dB以上）マイクとスピーカーの距離を調整してください\`);
+        }
+        
+        if (quality.clippingRatio > 1.0) {
+            quality.issues.push(\`クリッピング率: \${quality.clippingRatio.toFixed(2)}%（許容: 1%未満）スピーカー音量を下げてください\`);
+        }
+    }
+    
+    log('=== 品質評価完了 ===', {
+        level: quality.level,
+        expectedMethod: quality.expectedMethod,
+        passed: quality.passed ? '✅ 合格' : '❌ 不合格'
+    });
+    
+    return quality;
+}
+
+// ========================================
 // FFT実装
 // ========================================
 function fft(real, imag) {
-    log('FFT開始', { length: real.length });
-    
     const n = real.length;
-    if (n <= 1) {
-        log('FFT完了（n<=1）');
-        return;
-    }
+    if (n <= 1) return;
     
     let j = 0;
     for (let i = 0; i < n - 1; i++) {
@@ -1336,8 +1474,6 @@ function fft(real, imag) {
         }
         j += k;
     }
-    
-    log('FFT: ビット反転完了');
     
     for (let len = 2; len <= n; len <<= 1) {
         const angle = -2 * Math.PI / len;
@@ -1365,8 +1501,6 @@ function fft(real, imag) {
             }
         }
     }
-    
-    log('FFT完了');
 }
 
 // ========================================
@@ -1378,7 +1512,6 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
     const lowFreq = centerFreq / Math.sqrt(2);
     const highFreq = centerFreq * Math.sqrt(2);
     
-    // データサイズを2のべき乗に調整
     const originalLength = data.length;
     const powerOf2 = Math.pow(2, Math.ceil(Math.log2(originalLength)));
     
@@ -1390,15 +1523,12 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
     
     const n = powerOf2;
     
-    log('配列確保中...', { size: n });
     const real = new Float32Array(n);
     const imag = new Float32Array(n);
     
-    // 元のデータをコピー（ゼロパディング）
     for (let i = 0; i < originalLength; i++) {
         real[i] = data[i];
     }
-    // n > originalLength の部分は自動的に0で初期化される
     
     log('順方向FFT開始');
     fft(real, imag);
@@ -1424,7 +1554,6 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
     
     log('バンドパスフィルタ完了');
     
-    // 元のサイズに切り詰めて返す
     const result = new Float32Array(originalLength);
     for (let i = 0; i < originalLength; i++) {
         result[i] = real[i];
@@ -1437,8 +1566,6 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
 // シュレーダー積分
 // ========================================
 function schroederIntegration(impulseResponse) {
-    log('シュレーダー積分開始', { length: impulseResponse.length });
-    
     const n = impulseResponse.length;
     const edc = new Float32Array(n);
     
@@ -1455,7 +1582,6 @@ function schroederIntegration(impulseResponse) {
         }
     }
     
-    log('シュレーダー積分完了', { maxEnergy: maxEnergy });
     return edc;
 }
 
@@ -1499,7 +1625,7 @@ function tryMeasureRT(edcDB, sampleRate, startDB, endDB) {
 }
 
 // ========================================
-// RT計算
+// RT計算（T60/T30/T20フォールバック）
 // ========================================
 function calculateRT(edc, sampleRate) {
     const n = edc.length;
@@ -1546,6 +1672,185 @@ function calculateRT(edc, sampleRate) {
         description: '測定失敗（ダイナミックレンジ不足）'
     };
 }
+
+// ========================================
+// SNR計算
+// ========================================
+function calculateSNR(signal, noiseFloor) {
+    let signalPower = 0;
+    for (let i = 0; i < signal.length; i++) {
+        signalPower += signal[i] * signal[i];
+    }
+    signalPower /= signal.length;
+    
+    const snr = 10 * Math.log10(signalPower / (noiseFloor * noiseFloor));
+    return snr;
+}
+
+// ========================================
+// メインメッセージハンドラ
+// ========================================
+self.onmessage = function(e) {
+    log('=== Worker開始 ===');
+    
+    const { type, data } = e.data;
+    
+    if (type === 'analyze') {
+        log('解析タイプ確認: analyze');
+        const { recordedData, sampleRate, noiseFloor } = data;
+        
+        log('受信データ確認', {
+            dataLength: recordedData.length,
+            sampleRate: sampleRate,
+            noiseFloor: noiseFloor,
+            duration: (recordedData.length / sampleRate).toFixed(2) + '秒'
+        });
+        
+        try {
+            // ========================================
+            // Phase 1: 品質評価（新規追加）
+            // ========================================
+            const qualityCheck = assessRecordingQuality(recordedData, sampleRate, noiseFloor);
+            
+            if (!qualityCheck.passed) {
+                log('❌ 品質チェック不合格 - 再測定が必要');
+                
+                // 既存の再測定メカニズムを起動
+                self.postMessage({
+                    type: 'result',
+                    rt60: [null, null, null, null, null, null],
+                    snr: [0, 0, 0, 0, 0, 0, 0, 0],
+                    quality: 'poor',
+                    qualityReason: '録音品質が不十分です:\\n' + qualityCheck.issues.join('\\n'),
+                    methods: ['failed', 'failed', 'failed', 'failed', 'failed', 'failed'],
+                    primaryMethod: 'failed',
+                    methodCounts: { T60: 0, T30: 0, T20: 0, failed: 6 }
+                });
+                
+                log('=== Worker完了（再測定推奨） ===');
+                return;
+            }
+            
+            log('✅ 品質チェック合格', {
+                level: qualityCheck.level,
+                expectedMethod: qualityCheck.expectedMethod,
+                snr: qualityCheck.snr.toFixed(1) + 'dB',
+                dynamicRange: qualityCheck.dynamicRange.toFixed(1) + 'dB'
+            });
+            
+            // ========================================
+            // Phase 2: 周波数帯域別解析（既存処理）
+            // ========================================
+            log('解析処理開始');
+            const startTime = Date.now();
+            
+            const freqBands = [125, 250, 500, 1000, 2000, 4000];
+            const rt60Results = [];
+            const snrResults = [];
+            const methodsUsed = [];
+            const qualityLevels = [];
+            
+            log('周波数帯域処理開始', { bands: freqBands.length });
+            
+            for (let i = 0; i < freqBands.length; i++) {
+                log(\`===== 帯域 \${i+1}/6 処理開始 =====\`, { freq: freqBands[i] + 'Hz' });
+                
+                const centerFreq = freqBands[i];
+                
+                const filtered = applyBandpassFilter(recordedData, sampleRate, centerFreq, centerFreq);
+                
+                const edc = schroederIntegration(filtered);
+                
+                const rtResult = calculateRT(edc, sampleRate);
+                log(\`RT計算完了 \${i+1}/6\`, { 
+                    method: rtResult.method, 
+                    value: rtResult.value,
+                    quality: rtResult.quality
+                });
+                
+                const snr = calculateSNR(filtered, noiseFloor);
+                log(\`SNR計算完了 \${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
+                
+                rt60Results.push(rtResult.value);
+                snrResults.push(snr);
+                methodsUsed.push(rtResult.method);
+                qualityLevels.push(rtResult.quality);
+                
+                log(\`===== 帯域 \${i+1}/6 処理完了 =====\`);
+            }
+            
+            log('全帯域処理完了');
+            log('品質評価開始');
+            
+            let overallQuality = 'good';
+            let qualityReason = '';
+            
+            const minSNR = Math.min(...snrResults.filter(s => !isNaN(s)));
+            log('最小SNR', { value: minSNR.toFixed(1) + 'dB' });
+            
+            if (minSNR < 15) {
+                overallQuality = 'poor';
+                qualityReason = \`S/N比不足（\${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。\`;
+            }
+            
+            const successCount = rt60Results.filter(rt => rt !== null).length;
+            log('測定成功数', { count: successCount + '/6' });
+            
+            if (successCount < 4) {
+                overallQuality = 'poor';
+                qualityReason = \`測定成功率が低すぎます（\${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。\`;
+            }
+            
+            const validRT60 = rt60Results.filter(rt => rt !== null && rt >= 0.05 && rt <= 5.0);
+            if (validRT60.length < successCount) {
+                overallQuality = 'poor';
+                qualityReason = 'RT60値が物理的に妥当な範囲外です。測定環境を確認してください。';
+            }
+            
+            const methodCounts = {
+                T60: methodsUsed.filter(m => m === 'T60').length,
+                T30: methodsUsed.filter(m => m === 'T30').length,
+                T20: methodsUsed.filter(m => m === 'T20').length,
+                failed: methodsUsed.filter(m => m === 'failed').length
+            };
+            
+            log('測定手法分布', methodCounts);
+            
+            let primaryMethod = 'T30';
+            if (methodCounts.T60 >= 4) primaryMethod = 'T60';
+            else if (methodCounts.T20 >= 4) primaryMethod = 'T20';
+            
+            log('品質評価完了', { quality: overallQuality, primaryMethod: primaryMethod });
+            log('結果送信中...');
+            
+            self.postMessage({
+                type: 'result',
+                rt60: rt60Results,
+                snr: snrResults,
+                quality: overallQuality,
+                qualityReason: qualityReason,
+                methods: methodsUsed,
+                primaryMethod: primaryMethod,
+                methodCounts: methodCounts
+            });
+            
+            const processingTime = (Date.now() - startTime) / 1000;
+            log('=== Worker完了 ===', { processingTime: processingTime.toFixed(2) + '秒' });
+            
+        } catch (error) {
+            log('❌ エラー発生', { 
+                message: error.message,
+                stack: error.stack
+            });
+            
+            self.postMessage({
+                type: 'error',
+                message: '解析中にエラーが発生しました: ' + error.message
+            });
+        }
+    }
+};
+`;
 
 // ========================================
 // SNR計算
