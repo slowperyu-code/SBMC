@@ -1668,103 +1668,57 @@ self.onmessage = function(e) {
 };
 `;
 
+// ========================================
+// Worker初期化（この関数全体を置き換え）
+// ========================================
 let measurementWorker = null;
 
 function initWorker() {
+    console.log('Worker初期化開始...');
+    
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     const workerUrl = URL.createObjectURL(blob);
     measurementWorker = new Worker(workerUrl);
     
+    console.log('Worker作成完了:', measurementWorker);
+    
     measurementWorker.onmessage = function(e) {
-        const { type, rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts, message } = e.data;
+        console.log('メインスレッド: Workerからメッセージ受信', e.data.type);
         
+        const { type } = e.data;
+        
+        // デバッグメッセージを表示
+        if (type === 'debug') {
+            console.log('[Worker Debug]', e.data.message, e.data.data || '');
+            return;
+        }
+        
+        // 結果処理
         if (type === 'result') {
+            console.log('メインスレッド: 結果受信');
+            const { rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts } = e.data;
             handleMeasurementResult(rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts);
         } else if (type === 'error') {
+            console.log('メインスレッド: エラー受信');
+            const { message } = e.data;
             handleMeasurementError(message);
         }
     };
+    
+    measurementWorker.onerror = function(error) {
+        console.error('❌ Worker初期化エラー:', error);
+    };
+    
+    console.log('Workerハンドラ設定完了');
 }
 
-function handleMeasurementResult(rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts) {
-    const statusEl = document.getElementById('measureStatus');
-    const warningEl = document.getElementById('remeasureWarning');
-    const warningReasonEl = document.getElementById('warningReason');
-    const manualInputEl = document.getElementById('manualInputPanel');
-    const recordingAlertEl = document.getElementById('recordingAlert');
-    const methodBadge = document.getElementById('methodBadge');
-    
-    recordingAlertEl.classList.remove('active');
-    
-    if (quality === 'good') {
-        measurementData = rt60;
-        
-        document.getElementById('m125').value = rt60[0] ? rt60[0].toFixed(2) : '0.00';
-        document.getElementById('m250').value = rt60[1] ? rt60[1].toFixed(2) : '0.00';
-        document.getElementById('m500').value = rt60[2] ? rt60[2].toFixed(2) : '0.00';
-        document.getElementById('m1k').value = rt60[3] ? rt60[3].toFixed(2) : '0.00';
-        document.getElementById('m2k').value = rt60[4] ? rt60[4].toFixed(2) : '0.00';
-        document.getElementById('m4k').value = rt60[5] ? rt60[5].toFixed(2) : '0.00';
-        
-        let methodInfo = '';
-        if (primaryMethod === 'T60') {
-            methodInfo = '✅ 測定完了 (T60直接測定) - 最高精度';
-        } else if (primaryMethod === 'T30') {
-            methodInfo = '✅ 測定完了 (T30測定) - ISO 3382-2準拠、誤差±2-5%';
-        } else if (primaryMethod === 'T20') {
-            methodInfo = '✅ 測定完了 (T20測定) - 小空間向け、誤差±5-10%';
-        }
-        
-        statusEl.textContent = methodInfo;
-        statusEl.className = 'status-msg success';
-        
-        methodBadge.textContent = `EYRING (${primaryMethod})`;
-        methodBadge.style.background = primaryMethod === 'T60' ? 'var(--success)' : 
-                                        primaryMethod === 'T30' ? 'var(--warning)' : 
-                                        'var(--caution)';
-        
-        const avgSNR = snr.reduce((a, b) => a + b, 0) / snr.length;
-        const snrIndicatorEl = document.getElementById('snrIndicator');
-        const snrValueEl = document.getElementById('snrValue');
-        snrIndicatorEl.style.display = 'block';
-        snrValueEl.style.width = Math.min(avgSNR * 2, 100) + '%';
-        snrValueEl.textContent = avgSNR.toFixed(1) + ' dB';
-        
-        warningEl.style.display = 'none';
-        
-        manualInputEl.style.display = 'block';
-        
-        calculate();
-        
-    } else {
-        measurementData = null;
-        
-        statusEl.textContent = '⚠️ 測定失敗 - 再測定が必要です';
-        statusEl.className = 'status-msg error';
-        
-        warningEl.style.display = 'block';
-        warningReasonEl.textContent = qualityReason;
-        
-        manualInputEl.style.display = 'block';
-    }
-    
-    document.getElementById('startMeasBtn').disabled = false;
-}
-
-function handleMeasurementError(message) {
-    const statusEl = document.getElementById('measureStatus');
-    const recordingAlertEl = document.getElementById('recordingAlert');
-    
-    recordingAlertEl.classList.remove('active');
-    
-    statusEl.textContent = '❌ エラー: ' + message;
-    statusEl.className = 'status-msg error';
-    
-    document.getElementById('startMeasBtn').disabled = false;
-}
-
+// ========================================
+// DOMContentLoaded でWorker初期化（追加）
+// ========================================
 window.addEventListener('DOMContentLoaded', function() {
+    console.log('=== Worker初期化開始 ===');
     initWorker();
+    console.log('=== Worker初期化完了 ===');
 });
 </script>
 
