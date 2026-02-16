@@ -1378,10 +1378,27 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
     const lowFreq = centerFreq / Math.sqrt(2);
     const highFreq = centerFreq * Math.sqrt(2);
     
-    const n = data.length;
+    // データサイズを2のべき乗に調整
+    const originalLength = data.length;
+    const powerOf2 = Math.pow(2, Math.ceil(Math.log2(originalLength)));
+    
+    log('データサイズ調整', { 
+        original: originalLength, 
+        paddedTo: powerOf2,
+        ratio: (powerOf2 / originalLength).toFixed(2)
+    });
+    
+    const n = powerOf2;
+    
     log('配列確保中...', { size: n });
-    const real = new Float32Array(data);
+    const real = new Float32Array(n);
     const imag = new Float32Array(n);
+    
+    // 元のデータをコピー（ゼロパディング）
+    for (let i = 0; i < originalLength; i++) {
+        real[i] = data[i];
+    }
+    // n > originalLength の部分は自動的に0で初期化される
     
     log('順方向FFT開始');
     fft(real, imag);
@@ -1406,7 +1423,14 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
     }
     
     log('バンドパスフィルタ完了');
-    return real;
+    
+    // 元のサイズに切り詰めて返す
+    const result = new Float32Array(originalLength);
+    for (let i = 0; i < originalLength; i++) {
+        result[i] = real[i];
+    }
+    
+    return result;
 }
 
 // ========================================
