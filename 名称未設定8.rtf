@@ -1,0 +1,564 @@
+{\rtf1\ansi\ansicpg932\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh14220\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 <!DOCTYPE html>\
+<html lang="ja">\
+<head>\
+    <meta charset="UTF-8">\
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">\
+    <meta name="description" content="Soundbox Engine Rev 17.5: Web Worker\uc0\u12395 \u12424 \u12427 \u38750 \u21516 \u26399 \u20006 \u21015 \u35336 \u31639 \u12434 \u23455 \u35013 \u12375 \u12383 \u12503 \u12525 \u12501 \u12455 \u12483 \u12471 \u12519 \u12490 \u12523 \u21521 \u12369 \u35519 \u38899 \u35373 \u35336 \u12484 \u12540 \u12523 \u12290 ">\
+    <title>Soundbox Material Calculator Rev 17.5 | Web Worker Enabled</title>\
+    \
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\
+    <style>\
+        :root \{ \
+            --primary: #39d353; --bg: #0d1117; --card: #161b22; --text: #e6edf3; --dim: #8b949e; --border: #30363d; --accent: #388bfd; \
+            --danger: #ff7b72; --warning: #d29922; --success: #39d353; --caution: #f0883e;\
+        \}\
+        body \{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg); color: var(--text); padding: 15px; margin: 0; font-size: 13px; line-height: 1.4; \}\
+        .container \{ max-width: 1000px; min-width: 800px; margin: auto; background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; \}\
+        \
+        .header \{ border-bottom: 1px solid var(--border); margin-bottom: 20px; padding-bottom: 12px; position: relative; \}\
+        .header-top \{ display: flex; justify-content: space-between; align-items: flex-start; \}\
+        h2 \{ color: var(--primary); margin: 0; font-size: 1.4rem; letter-spacing: 0.5px; \}\
+        .subtitle \{ font-size: 0.85rem; color: var(--text); margin-top: 5px; font-weight: 500; \}\
+        .worker-status \{ position: absolute; bottom: 8px; right: 0; font-size: 0.65rem; color: var(--primary); font-style: italic; \}\
+        \
+        .btn-group \{ display: flex; gap: 10px; \}\
+        .btn-base \{ border: none; padding: 7px 16px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; transition: opacity 0.2s; text-decoration: none; \}\
+        .btn-print \{ background: var(--border); color: var(--text); border: 1px solid var(--border); \}\
+        .btn-estimate \{ background: var(--accent); color: white; \}\
+        .btn-base:hover \{ opacity: 0.8; \}\
+\
+        .section-title \{ font-size: 0.8rem; font-weight: bold; color: var(--accent); margin: 20px 0 10px 0; border-left: 3px solid var(--accent); padding-left: 8px; \}\
+        input, select, .custom-select-trigger \{ \
+            background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0 10px; border-radius: 4px; \
+            width: 100%; box-sizing: border-box; font-size: 0.75rem; height: 36px; line-height: 34px; display: flex; align-items: center; \
+        \}\
+        .grid-3 \{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; \}\
+        .grid-row \{ display: grid; grid-template-columns: 2fr 3.5fr 0.8fr 0.8fr 1fr; gap: 8px; margin-bottom: 8px; align-items: end; \}\
+        label \{ font-size: 0.65rem; color: var(--dim); margin-bottom: 4px; display: block; \}\
+        \
+        /* Custom Select (v6.1 Beta Inherited) */\
+        .custom-select-container \{ position: relative; width: 100%; \}\
+        .custom-select-trigger \{ cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--border); \}\
+        .sub-panel \{ display: none; position: absolute; top: 100%; left: 0; width: 540px; background: #1c2128; border: 1px solid var(--accent); border-radius: 8px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); padding: 15px; margin-top: 5px; \}\
+        .sub-panel.active \{ display: block; \}\
+        .panel-cols \{ display: grid; grid-template-columns: 1.4fr 0.8fr 1.2fr; gap: 12px; \}\
+        .col-title \{ font-size: 0.6rem; color: var(--accent); margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 4px; \}\
+        .col-item \{ padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-bottom: 3px; font-size: 0.7rem; color: var(--text); \}\
+        .col-item:hover \{ background: var(--border); \}\
+        .col-item.selected \{ background: var(--accent); color: white; font-weight: bold; \}\
+        \
+        /* Results (Rev 17.5 Specs) */\
+        .res-panel \{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; \}\
+        .res-card \{ background: var(--bg); padding: 15px; border-radius: 10px; border: 2px solid var(--border); text-align: center; \}\
+        .res-val \{ font-size: 1.6rem; font-weight: bold; font-family: "Roboto Mono", monospace; \}\
+        .chart-wrapper \{ position: relative; height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.2); \}\
+        .footer-note \{ margin-top: 20px; padding: 18px; background: rgba(56, 139, 253, 0.05); border-radius: 8px; border: 1px solid var(--border); \}\
+        .advice-tag \{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 8px; font-size: 0.7rem; color: #000; \}\
+        \
+        .measure-grid \{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px; \}\
+        .measure-grid input \{ height: 28px; font-size: 0.7rem; text-align: center; \}\
+\
+        @media print \{\
+            .no-print \{ display: none !important; \}\
+            .container \{ box-shadow: none; border: none; width: 100%; max-width: none; background: white; color: black; \}\
+            .res-card \{ border: 1pt solid black !important; \}\
+        \}\
+    </style>\
+</head>\
+<body>\
+<div class="container">\
+    <div class="header">\
+        <div class="header-top">\
+            <h2>Soundbox Material Calculator</h2>\
+            <div class="btn-group no-print">\
+                <button class="btn-base btn-print" onclick="window.print()">\uc0\u32080 \u26524 \u12434 \u21360 \u21047  / PDF\u20445 \u23384 </button>\
+                <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">\uc0\u12371 \u12398 \u20869 \u23481 \u12391 \u35211 \u31309 \u12418 \u12426 \u20381 \u38972 </button>\
+            </div>\
+        </div>\
+        <div class="subtitle">Soundbox Engine Rev 17.5 | Professional Acoustic Simulator</div>\
+        <div class="worker-status" id="workerStatus">Worker Active: Sabine/Eyring Parallel Mode</div>\
+    </div>\
+\
+    <div class="section-title">1. \uc0\u22522 \u26412 \u29872 \u22659 \u35373 \u23450 </div>\
+    <div class="grid-3">\
+        <div><label>\uc0\u21033 \u29992 \u30446 \u30340  (\u30446 \u27161 \u20516 )</label><select id="appTarget"></select></div>\
+        <div><label>\uc0\u37096 \u23627 \u12469 \u12452 \u12474  W / D / H [m]</label>\
+            <div style="display:flex; gap:4px;">\
+                <input type="number" id="w" value="4.0" step="0.1">\
+                <input type="number" id="d" value="6.0" step="0.1">\
+                <input type="number" id="h" value="2.6" step="0.1">\
+            </div>\
+        </div>\
+        <div style="display:flex; align-items:flex-end; padding-bottom:5px;">\
+            <input type="checkbox" id="isMeasureMode" style="width:16px; margin-right:8px;">\
+            <label for="isMeasureMode" style="margin:0; cursor:pointer; color:var(--warning);">\uc0\u23455 \u28204 \u20516 \u12434 \u20837 \u21147 \u12377 \u12427  (Eyring\u36969 \u29992 )</label>\
+        </div>\
+    </div>\
+\
+    <div id="measurePanel" style="display:none; background: rgba(210, 153, 34, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--warning);">\
+        <label style="color:var(--warning); font-weight:bold;">\uc0\u29694 \u29366 \u12398 \u27531 \u38911 \u26178 \u38291  (\u28204 \u23450 \u20516 ) [sec]</label>\
+        <div class="measure-grid">\
+            <div><label>125Hz</label><input type="number" id="m125" value="0.8" step="0.01"></div>\
+            <div><label>250Hz</label><input type="number" id="m250" value="0.7" step="0.01"></div>\
+            <div><label>500Hz</label><input type="number" id="m500" value="0.6" step="0.01"></div>\
+            <div><label>1kHz</label><input type="number" id="m1k" value="0.6" step="0.01"></div>\
+            <div><label>2kHz</label><input type="number" id="m2k" value="0.5" step="0.01"></div>\
+            <div><label>4kHz</label><input type="number" id="m4k" value="0.5" step="0.01"></div>\
+        </div>\
+    </div>\
+\
+    <div class="grid-3">\
+        <div><label>\uc0\u22721 \u38754 \u20181 \u19978 \u12370  (\u12505 \u12540 \u12473 )</label><select id="baseWall"></select></div>\
+        <div><label>\uc0\u22825 \u20117 \u20181 \u19978 \u12370 </label><select id="baseCeiling"></select></div>\
+        <div><label>\uc0\u24202 \u20181 \u19978 \u12370 </label><select id="baseFloor"></select></div>\
+    </div>\
+    \
+    <div style="margin: 10px 0;">\
+        <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px; vertical-align:middle;">\
+        <label for="showSpecial" style="display:inline; cursor:pointer; color:var(--accent);">\uc0\u38283 \u21475 \u37096 (\u31379 \u31561 )\u12434 \u32771 \u24942 \u12377 \u12427 </label>\
+    </div>\
+\
+    <div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">\
+        <div class="grid-3" style="grid-template-columns: 2fr 1fr 1fr;">\
+            <div><label>\uc0\u36861 \u21152 \u32032 \u26448 </label><select id="exMat"></select></div>\
+            <div><label>\uc0\u38754 \u31309  [\u13217 ]</label><input type="number" id="exArea" value="2.0" step="0.1"></div>\
+        </div>\
+    </div>\
+\
+    <div class="section-title">2. \uc0\u35069 \u21697 \u12475 \u12524 \u12463 \u12471 \u12519 \u12531 </div>\
+    <div id="sbInputs"></div>\
+\
+    <div class="res-panel">\
+        <div class="res-card">\
+            <label style="font-size:0.6rem">\uc0\u24179 \u22343 \u27531 \u38911 \u26178 \u38291  (500Hz-1kHz)</label>\
+            <div id="postRT_Avg" class="res-val">-</div>\
+            <div id="targetLabel" style="font-size:0.6rem; color:var(--dim)">\uc0\u30446 \u27161 : -</div>\
+        </div>\
+        <div class="res-card" id="cardHealth">\
+            <label style="font-size:0.6rem">\uc0\u23455 \u29992 \u24615 \u35413 \u20385 </label>\
+            <div id="achievementRate" class="res-val">-</div>\
+            <div id="healthStatus" style="font-size:0.65rem; font-weight:bold;">-</div>\
+        </div>\
+        <div class="res-card">\
+            <label style="font-size:0.6rem">\uc0\u23566 \u20837 \u38754 \u31309  / \u35373 \u32622 \u21487 \u33021 \u38480 \u30028 </label>\
+            <div id="totalPanelArea" class="res-val" style="font-size:1.1rem;">-</div>\
+            <div id="areaWarning" style="font-size:0.65rem; font-weight:bold;">-</div>\
+        </div>\
+    </div>\
+\
+    <div class="chart-wrapper"><canvas id="rtChart"></canvas></div>\
+\
+    <div class="footer-note">\
+        <div id="adviceHeader" class="advice-tag"></div>\
+        <div id="detailedNote" style="font-size:0.75rem;"></div>\
+    </div>\
+</div>\
+\
+<script>\
+/**\
+ * DATABASE DEFINITION\
+ */\
+const SOUNDBOX_DB = \{\
+    apps: [\
+        \{ id: "office", name: "\uc0\u12458 \u12501 \u12451 \u12473  / \u19968 \u33324 \u20250 \u35696 \u23460  (0.6s)", t: 0.6 \},\
+        \{ id: "web_mtg", name: "Web\uc0\u20250 \u35696 \u23460  / \u12458 \u12531 \u12521 \u12452 \u12531 MTG (0.4s)", t: 0.4 \},\
+        \{ id: "audio", name: "\uc0\u12458 \u12540 \u12487 \u12451 \u12458 \u12523 \u12540 \u12512  (0.4s)", t: 0.4 \},\
+        \{ id: "ma", name: "MA\uc0\u12473 \u12479 \u12472 \u12458  (0.3s)", t: 0.3 \},\
+        \{ id: "lobby", name: "\uc0\u20844 \u20849 \u12525 \u12499 \u12540  / \u12459 \u12501 \u12455  (1.0s)", t: 1.0 \},\
+        \{ id: "school", name: "\uc0\u25945 \u23460  / \u35611 \u32681 \u23460  (0.8s)", t: 0.8 \},\
+        \{ id: "hotel", name: "\uc0\u12507 \u12486 \u12523 \u12525 \u12499 \u12540  (1.2s)", t: 1.2 \},\
+        \{ id: "gym", name: "\uc0\u20307 \u32946 \u39208  / \u22823 \u31354 \u38291  (1.8s)", t: 1.8 \}\
+    ],\
+    materials: \{\
+        "plasterboard": \{ name: "\uc0\u30707 \u33167 \u12508 \u12540 \u12489 +\u22721 \u32025 ", data: [0.15, 0.10, 0.05, 0.04, 0.07, 0.09] \},\
+        "concrete": \{ name: "\uc0\u12467 \u12531 \u12463 \u12522 \u12540 \u12488 ", data: [0.01, 0.01, 0.02, 0.02, 0.02, 0.03] \},\
+        "glass": \{ name: "\uc0\u12460 \u12521 \u12473 \u31379 /\u37857 ", data: [0.03, 0.03, 0.03, 0.03, 0.02, 0.02] \},\
+        "curtain_heavy": \{ name: "\uc0\u21402 \u25163 \u12398 \u12459 \u12540 \u12486 \u12531 ", data: [0.07, 0.15, 0.40, 0.70, 0.65, 0.60] \},\
+        "carpet": \{ name: "\uc0\u12479 \u12452 \u12523 \u12459 \u12540 \u12506 \u12483 \u12488 ", data: [0.02, 0.05, 0.10, 0.20, 0.30, 0.40] \},\
+        "wood": \{ name: "\uc0\u12501 \u12525 \u12540 \u12522 \u12531 \u12464 /\u26408 \u26495 ", data: [0.15, 0.11, 0.10, 0.07, 0.06, 0.07] \}\
+    \},\
+    products: \{\
+        "STANDARD": \{ \
+            name: "1. \uc0\u12473 \u12479 \u12531 \u12480 \u12540 \u12489 \u12497 \u12493 \u12523 ", \
+            models: \{\
+                "STD": \{ n: "EQ Standard", diff: 0.1, d: \{ "30": [0.2,0.5,0.95,1.05,1.05,1.0], "60": [0.35,0.85,1.15,1.1,1.05,1.0], "120": [0.60,1.10,1.20,1.1,1.05,1.0] \}, sizes: \{ "600x600": 0.36, "600x900": 0.54, "600x1200": 0.72 \} \},\
+                "R": \{ n: "EQ R (Rococo)", diff: 0.3, d: \{ "30": [0.2,0.5,0.9,1.05,1.05,1.0], "60": [0.35,0.85,1.1,1.1,1.05,1.0], "120": [0.55,1.05,1.15,1.1,1.05,1.0] \}, sizes: \{ "600x600": 0.36, "600x900": 0.54, "600x1200": 0.72 \} \},\
+                "B": \{ n: "EQ B (Baroque)", diff: 0.6, d: \{ "30": [0.2,0.5,0.9,1.05,1.0,0.9], "60": [0.35,0.85,1.1,1.1,1.0,0.9], "120": [0.55,1.05,1.15,1.1,1.0,0.9] \}, sizes: \{ "600x600": 0.36, "600x1200": 0.72 \} \}\
+            \}\
+        \},\
+        "OFFICE": \{\
+            name: "2. \uc0\u12458 \u12501 \u12451 \u12473  / \u12501 \u12449 \u12502 \u12522 \u12483 \u12463 ",\
+            models: \{\
+                "EQ2_X": \{ n: "EQ Fabric 2.x", diff: 0.1, d: \{ "30": [0.20, 0.45, 0.90, 1.00, 1.00, 0.95], "50": [0.35, 0.75, 1.05, 1.05, 1.00, 1.00] \}, sizes: \{ "600x600": 0.36, "600x1200": 0.72 \} \},\
+                "Imagine": \{ n: "Imagine Panel", diff: 0.05, d: \{ "STD": [0.20, 0.45, 0.85, 1.00, 1.00, 1.00] \}, sizes: \{ "600x900": 0.54, "800x1200": 0.96 \} \}\
+            \}\
+        \},\
+        "ENGINEERING": \{\
+            name: "3. \uc0\u12456 \u12531 \u12472 \u12491 \u12450 \u12522 \u12531 \u12464 ",\
+            models: \{\
+                "MT": \{ n: "MT Baffle", diff: 0.2, d: \{ "50": [0.40, 0.85, 1.15, 1.10, 1.05, 1.00], "100": [0.70, 1.05, 1.20, 1.15, 1.10, 1.05] \}, sizes: \{ "1200x600": 0.72 \} \},\
+                "CM": \{ n: "CM Series", diff: 0.25, d: \{ "60": [0.35, 0.85, 1.15, 1.10, 1.05, 1.00], "120": [0.60, 1.10, 1.25, 1.15, 1.10, 1.05] \}, sizes: \{ "600x600": 0.36, "600x1200": 0.72 \} \}\
+            \}\
+        \}\
+    \}\
+\};\
+\
+/**\
+ * WEB WORKER BLOB GENERATION\
+ */\
+const workerCode = `\
+self.onmessage = function(e) \{\
+    const d = e.data;\
+    const \{ W, D, H, isMeasure, measureVals, baseWallA, baseCeilA, baseFloorA, specialData, productInputs, appTargetT \} = d;\
+    \
+    const V = W * D * H;\
+    const S_total = 2 * (W*D + D*H + H*W);\
+    const S_wall = 2 * (D*H + H*W);\
+    const m_coeffs = [0, 0, 0, 0, 0.002, 0.007]; // \uc0\u31354 \u27671 \u21560 \u21454 \u20418 \u25968 \
+\
+    // \uc0\u12505 \u12540 \u12473 \u21560 \u38899 \u38754 \u31309 \u12398 \u35336 \u31639 \
+    let baseA = [0,1,2,3,4,5].map(i => (S_wall * baseWallA[i]) + ((W*D) * baseCeilA[i]) + ((W*D) * baseFloorA[i]));\
+    \
+    if (specialData.active) \{\
+        baseA = baseA.map((v, i) => v + (specialData.area * (specialData.alpha[i] - baseWallA[i])));\
+    \}\
+\
+    // Soundbox\uc0\u35069 \u21697 \u12395 \u12424 \u12427 \u21560 \u38899 \u38754 \u31309 \u12398 \u21152 \u31639 \
+    let productA = [0,0,0,0,0,0];\
+    let totalPanelM2 = 0;\
+    productInputs.forEach(p => \{\
+        if (p.qty > 0 && p.alpha) \{\
+            totalPanelM2 += p.unitM2 * p.qty;\
+            productA = productA.map((v, i) => v + (p.unitM2 * p.qty * (p.alpha[i] - baseWallA[i])));\
+        \}\
+    \});\
+\
+    const totalA = baseA.map((v, i) => v + productA[i]);\
+    const avgAlpha = totalA.map(v => v / S_total);\
+\
+    // Hybrid Logic: Sabine / Eyring\
+    let rt = totalA.map((A, i) => \{\
+        if (isMeasure) \{\
+            // Eyring\uc0\u24335  (\u23455 \u28204 \u12505 \u12540 \u12473 \u12398 \u35036 \u27491 )\
+            const alpha = Math.min(avgAlpha[i], 0.99);\
+            return (0.161 * V) / (-S_total * Math.log(1 - alpha) + 4 * m_coeffs[i] * V);\
+        \} else \{\
+            // Sabine\uc0\u24335  (\u35373 \u35336 \u12471 \u12511 \u12517 \u12524 \u12540 \u12471 \u12519 \u12531 )\
+            return (0.161 * V) / (A + 4 * m_coeffs[i] * V);\
+        \}\
+    \});\
+\
+    // \uc0\u21028 \u23450 \u12525 \u12472 \u12483 \u12463 \
+    const postAvg = (rt[2] + rt[3]) / 2;\
+    const achieve = (appTargetT / postAvg) * 100;\
+    const usableSurface = S_wall * 0.8;\
+    const isOverArea = totalPanelM2 > usableSurface;\
+\
+    self.postMessage(\{ rt, postAvg, achieve, totalPanelM2, usableSurface, isOverArea, V \});\
+\};\
+`;\
+\
+const workerBlob = new Blob([workerCode], \{ type: 'application/javascript' \});\
+const worker = new Worker(URL.createObjectURL(workerBlob));\
+\
+let chart;\
+let selectedSpecs = [\{\}, \{\}, \{\}];\
+\
+function init() \{\
+    const at = document.getElementById('appTarget');\
+    SOUNDBOX_DB.apps.forEach(a => at.add(new Option(a.name, a.id)));\
+    const m = SOUNDBOX_DB.materials;\
+    ["baseWall", "baseCeiling", "baseFloor", "exMat"].forEach(id => \{\
+        for(let k in m) document.getElementById(id).add(new Option(m[k].name, k));\
+    \});\
+\
+    const sb = document.getElementById('sbInputs');\
+    for (let i = 0; i < 3; i++) \{\
+        const div = document.createElement('div'); div.className = 'grid-row';\
+        div.innerHTML = `\
+            <select id="cat_$\{i\}"><option value="">\uc0\u12459 \u12486 \u12468 \u12522 \u12540 \u12434 \u36984 \u25246 </option></select>\
+            <div class="custom-select-container">\
+                <div class="custom-select-trigger" id="trigger_$\{i\}">\uc0\u35069 \u21697 \u12473 \u12506 \u12483 \u12463 \u12434 \u36984 \u25246 ...</div>\
+                <div class="sub-panel" id="panel_$\{i\}">\
+                    <div class="panel-cols">\
+                        <div><div class="col-title">MODEL</div><div id="col_mod_$\{i\}"></div></div>\
+                        <div><div class="col-title">THICK</div><div id="col_thk_$\{i\}"></div></div>\
+                        <div><div class="col-title">SIZE</div><div id="col_siz_$\{i\}"></div></div>\
+                    </div>\
+                </div>\
+            </div>\
+            <input type="number" id="qty_$\{i\}" value="0" min="0">\
+            <div id="area_$\{i\}" style="font-size:0.6rem; color:var(--dim); text-align:center;">-</div>\
+            <div id="total_$\{i\}" style="font-size:0.75rem; color:var(--primary); text-align:right;">-</div>\
+        `;\
+        sb.appendChild(div);\
+        const catSel = document.getElementById(`cat_$\{i\}`);\
+        for (let k in SOUNDBOX_DB.products) catSel.add(new Option(SOUNDBOX_DB.products[k].name, k));\
+        catSel.addEventListener('change', () => resetPanel(i));\
+        document.getElementById(`trigger_$\{i\}`).addEventListener('click', (e) => togglePanel(i, e));\
+        document.getElementById(`qty_$\{i\}`).addEventListener('input', requestCalculate);\
+    \}\
+\
+    ["w","d","h","appTarget","baseWall","baseCeiling","baseFloor","exMat","exArea","isMeasureMode","m125","m250","m500","m1k","m2k","m4k"].forEach(id => \{\
+        document.getElementById(id).addEventListener('input', requestCalculate);\
+    \});\
+\
+    document.getElementById('isMeasureMode').addEventListener('change', function() \{\
+        document.getElementById('measurePanel').style.display = this.checked ? 'block' : 'none';\
+        requestCalculate();\
+    \});\
+\
+    document.getElementById('showSpecial').addEventListener('change', function() \{\
+        document.getElementById('specialPanel').style.display = this.checked ? 'block' : 'none';\
+        requestCalculate();\
+    \});\
+\
+    // Worker\uc0\u12363 \u12425 \u12398 \u32080 \u26524 \u21463 \u12369 \u21462 \u12426 \
+    worker.onmessage = function(e) \{\
+        updateUI(e.data);\
+    \};\
+\
+    requestCalculate();\
+\}\
+\
+function togglePanel(i, e) \{\
+    const catKey = document.getElementById(`cat_$\{i\}`).value;\
+    if (!catKey) return;\
+    const panel = document.getElementById(`panel_$\{i\}`);\
+    const isOpen = panel.classList.contains('active');\
+    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));\
+    if (!isOpen) \{ panel.classList.add('active'); renderPanel(i); \}\
+\}\
+\
+function resetPanel(i) \{\
+    selectedSpecs[i] = \{ m: null, t: null, s: null \};\
+    document.getElementById(`trigger_$\{i\}`).textContent = "\uc0\u35069 \u21697 \u12473 \u12506 \u12483 \u12463 \u12434 \u36984 \u25246 ...";\
+    requestCalculate();\
+\}\
+\
+function renderPanel(i) \{\
+    const catKey = document.getElementById(`cat_$\{i\}`).value;\
+    const cat = SOUNDBOX_DB.products[catKey];\
+    const colMod = document.getElementById(`col_mod_$\{i\}`);\
+    colMod.innerHTML = '';\
+    Object.keys(cat.models).forEach(mk => \{\
+        const item = document.createElement('div');\
+        item.className = `col-item $\{selectedSpecs[i].m === mk ? 'selected' : ''\}`;\
+        item.textContent = cat.models[mk].n;\
+        item.onclick = () => \{ selectedSpecs[i].m = mk; selectedSpecs[i].t = null; selectedSpecs[i].s = null; renderPanel(i); \};\
+        colMod.appendChild(item);\
+    \});\
+\
+    const colThk = document.getElementById(`col_thk_$\{i\}`);\
+    colThk.innerHTML = '';\
+    if (selectedSpecs[i].m) \{\
+        const model = cat.models[selectedSpecs[i].m];\
+        Object.keys(model.d).forEach(tk => \{\
+            const item = document.createElement('div');\
+            item.className = `col-item $\{selectedSpecs[i].t === tk ? 'selected' : ''\}`;\
+            item.textContent = tk === "STD" ? "Standard" : tk + "mm";\
+            item.onclick = () => \{ selectedSpecs[i].t = tk; selectedSpecs[i].s = null; renderPanel(i); \};\
+            colThk.appendChild(item);\
+        \});\
+    \}\
+\
+    const colSiz = document.getElementById(`col_siz_$\{i\}`);\
+    colSiz.innerHTML = '';\
+    if (selectedSpecs[i].t) \{\
+        const model = cat.models[selectedSpecs[i].m];\
+        Object.keys(model.sizes).forEach(sk => \{\
+            const item = document.createElement('div');\
+            item.className = `col-item $\{selectedSpecs[i].s === sk ? 'selected' : ''\}`;\
+            item.textContent = sk;\
+            item.onclick = () => \{ \
+                selectedSpecs[i].s = sk;\
+                document.getElementById(`trigger_$\{i\}`).textContent = `$\{model.n\} ($\{selectedSpecs[i].t\}mm) - $\{sk\}`;\
+                document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));\
+                requestCalculate();\
+            \};\
+            colSiz.appendChild(item);\
+        \});\
+    \}\
+\}\
+\
+/**\
+ * \uc0\u38750 \u21516 \u26399 \u35336 \u31639 \u12522 \u12463 \u12456 \u12473 \u12488  (Main Thread -> Worker)\
+ */\
+function requestCalculate() \{\
+    const m_db = SOUNDBOX_DB.materials;\
+    const p_db = SOUNDBOX_DB.products;\
+    \
+    const productInputs = selectedSpecs.map((spec, i) => \{\
+        const catKey = document.getElementById(`cat_$\{i\}`).value;\
+        const qty = parseInt(document.getElementById(`qty_$\{i\}`).value) || 0;\
+        if (catKey && spec.m && spec.t && spec.s) \{\
+            const model = p_db[catKey].models[spec.m];\
+            return \{\
+                unitM2: model.sizes[spec.s],\
+                qty: qty,\
+                alpha: model.d[spec.t]\
+            \};\
+        \}\
+        return \{ qty: 0 \};\
+    \});\
+\
+    const payload = \{\
+        W: parseFloat(document.getElementById('w').value) || 0,\
+        D: parseFloat(document.getElementById('d').value) || 0,\
+        H: parseFloat(document.getElementById('h').value) || 0,\
+        isMeasure: document.getElementById('isMeasureMode').checked,\
+        baseWallA: m_db[document.getElementById('baseWall').value].data,\
+        baseCeilA: m_db[document.getElementById('baseCeiling').value].data,\
+        baseFloorA: m_db[document.getElementById('baseFloor').value].data,\
+        specialData: \{\
+            active: document.getElementById('showSpecial').checked,\
+            area: parseFloat(document.getElementById('exArea').value) || 0,\
+            alpha: m_db[document.getElementById('exMat').value].data\
+        \},\
+        productInputs: productInputs,\
+        appTargetT: SOUNDBOX_DB.apps.find(a => a.id === document.getElementById('appTarget').value).t\
+    \};\
+\
+    worker.postMessage(payload);\
+\}\
+\
+/**\
+ * UI\uc0\u12398 \u26356 \u26032  (Worker -> Main Thread)\
+ */\
+function updateUI(data) \{\
+    const \{ rt, postAvg, achieve, totalPanelM2, usableSurface, isOverArea, V \} = data;\
+    const targetT = SOUNDBOX_DB.apps.find(a => a.id === document.getElementById('appTarget').value).t;\
+\
+    document.getElementById('postRT_Avg').textContent = postAvg.toFixed(2) + "s";\
+    document.getElementById('targetLabel').textContent = `\uc0\u30446 \u27161 : $\{targetT\}s`;\
+    document.getElementById('totalPanelArea').textContent = totalPanelM2.toFixed(1) + " / " + usableSurface.toFixed(1) + "\uc0\u13217 ";\
+\
+    const rateEl = document.getElementById('achievementRate');\
+    const statusEl = document.getElementById('healthStatus');\
+    const cardEl = document.getElementById('cardHealth');\
+    let adviceTag = "";\
+    let detailed = "";\
+\
+    if (isOverArea) \{\
+        rateEl.textContent = "FAIL";\
+        statusEl.textContent = "\uc0\u35373 \u32622 \u38480 \u30028 \u36229 \u36942 ";\
+        statusEl.style.color = "var(--danger)";\
+        cardEl.style.borderColor = "var(--danger)";\
+        document.getElementById('areaWarning').textContent = "\uc0\u9888 \u65039  \u35373 \u32622 \u12473 \u12506 \u12540 \u12473 \u19981 \u36275 ";\
+        document.getElementById('areaWarning').style.color = "var(--danger)";\
+        adviceTag = "FAIL: Area Limit";\
+        detailed = "\uc0\u12497 \u12493 \u12523 \u12398 \u32207 \u38754 \u31309 \u12364 \u26377 \u21177 \u22721 \u38754 \u31309 \u12434 \u36229 \u12360 \u12390 \u12356 \u12414 \u12377 \u12290 \u12424 \u12426 \u21177 \u29575 \u30340 \u12394 \u37197 \u32622 \u12363 \u12289 \u39640 \u24615 \u33021 \u12394 \u21402 \u22411 \u12497 \u12493 \u12523 \u12408 \u12398 \u22793 \u26356 \u12434 \u25512 \u22888 \u12375 \u12414 \u12377 \u12290 ";\
+    \} else \{\
+        document.getElementById('areaWarning').textContent = "\uc0\u36969 \u27491 \u12394 \u23566 \u20837 \u37327 ";\
+        document.getElementById('areaWarning').style.color = "var(--primary)";\
+        \
+        // \uc0\u25968 \u26178 \u38291 \u21069 \u12398 \u21512 \u24847 \u12395 \u22522 \u12389 \u12367 \u21028 \u23450 \
+        if (achieve >= 120) \{\
+            rateEl.textContent = achieve.toFixed(0) + "%";\
+            statusEl.textContent = "\uc0\u38911 \u12365 \u12364 \u23569 \u12394 \u12356 ";\
+            statusEl.style.color = "var(--caution)";\
+            cardEl.style.borderColor = "var(--caution)";\
+            adviceTag = "Over-Absorption";\
+            detailed = "\uc0\u31354 \u38291 \u12364 \u12487 \u12483 \u12489 \u36942 \u12366 \u12427 \u20670 \u21521 \u12395 \u12354 \u12426 \u12414 \u12377 \u12290 \u25313 \u25955 \u12497 \u12493 \u12523 \u65288 EQ R/B\u31561 \u65289 \u12434 \u27963 \u29992 \u12375 \u12390 \u38911 \u12365 \u12398 \u12496 \u12521 \u12531 \u12473 \u12434 \u25972 \u12360 \u12390 \u12367 \u12384 \u12373 \u12356 \u12290 ";\
+        \} else if (achieve >= 100) \{\
+            rateEl.textContent = achieve.toFixed(0) + "%";\
+            statusEl.textContent = "\uc0\u29702 \u24819 \u30340 ";\
+            statusEl.style.color = "var(--success)";\
+            cardEl.style.borderColor = "var(--success)";\
+            adviceTag = "Excellent";\
+            detailed = "\uc0\u29702 \u24819 \u30340 \u12394 \u25968 \u20516 \u12391 \u12377 \u12290 \u30446 \u27161 \u12398 \u27531 \u38911 \u26178 \u38291 \u12434 \u36948 \u25104 \u12375 \u12390 \u12356 \u12414 \u12377 \u12290 ";\
+        \} else if (achieve >= 80) \{\
+            rateEl.textContent = achieve.toFixed(0) + "%";\
+            statusEl.textContent = "\uc0\u23455 \u29992 \u12524 \u12505 \u12523 ";\
+            statusEl.style.color = "var(--accent)";\
+            cardEl.style.borderColor = "var(--accent)";\
+            adviceTag = "Good";\
+            detailed = "\uc0\u23455 \u29992 \u19978 \u21313 \u20998 \u12394 \u23566 \u20837 \u21177 \u26524 \u12391 \u12377 \u12290 \u20302 \u22495 \u12398 \u21046 \u24481 \u12395 \u12399 \u12289 \u12424 \u12426 \u21402 \u12356 \u12514 \u12487 \u12523 \u12398 \u26908 \u35342 \u12434 \u25512 \u22888 \u12375 \u12414 \u12377 \u12290 ";\
+        \} else \{\
+            rateEl.textContent = achieve.toFixed(0) + "%";\
+            statusEl.textContent = "\uc0\u21560 \u38899 \u19981 \u36275 ";\
+            statusEl.style.color = "var(--danger)";\
+            cardEl.style.borderColor = "var(--danger)";\
+            adviceTag = "More Panels Needed";\
+            detailed = "\uc0\u30446 \u27161 \u27531 \u38911 \u26178 \u38291 \u12395 \u36948 \u12375 \u12390 \u12356 \u12414 \u12379 \u12435 \u12290 \u12497 \u12493 \u12523 \u26522 \u25968 \u12434 \u22679 \u12420 \u12377 \u12363 \u12289 \u35373 \u32622 \u31623 \u25152 \u12434 \u20877 \u26908 \u35342 \u12375 \u12390 \u12367 \u12384 \u12373 \u12356 \u12290 ";\
+        \}\
+    \}\
+\
+    // \uc0\u23554 \u38272 \u23478 \u35386 \u26029 \u12398 \u36861 \u35352 \
+    if (V < 30) detailed += " [Small Room Analysis] \uc0\u9888 \u65039 \u12304 Small Room Analysis\u12305 \u37096 \u23627 \u12398 \u23481 \u31309 \u12364 \u23567 \u12373 \u12356 \u12383 \u12417 \u12289 \u21560 \u38899 \u29575 \u12424 \u12426 \u12418 \u12289 \u23450 \u22312 \u27874 \u65288 \u12502 \u12540 \u12511 \u12531 \u12464 \u65289 \u12398 \u24433 \u38911 \u12364 \u22823 \u12365 \u12367 \u12394 \u12426 \u12414 \u12377 \u12290 \u22721 \u38754 \u12398 \u20013 \u22830 \u12384 \u12369 \u12391 \u12394 \u12367 \u12289 \u12467 \u12540 \u12490 \u12540 \u12408 \u12398 \u12505 \u12540 \u12473 \u12488 \u12521 \u12483 \u12503 \u12420 \u25313 \u25955 \u12497 \u12493 \u12523 \u12398 \u35373 \u32622 \u12434 \u20778 \u20808 \u12377 \u12427 \u12371 \u12392 \u12391 \u12289 \u20302 \u22495 \u12398 \u12456 \u12493 \u12523 \u12462 \u12540 \u12434 \u21177 \u29575 \u30340 \u12395 \u20966 \u29702 \u12391 \u12365 \u12414 \u12377 \u12290 ";\
+    if (rt[0] > (rt[2] * 1.5)) detailed += " \uc0\u9888 \u65039  \u21512 \u26684 \u31684 \u22258 \u12391 \u12377 \u12364 \u12289 125Hz\u12398 \u27531 \u38911 \u12398 \u24433 \u38911 \u12399 \u12354 \u12426 \u12381 \u12358 \u12391 \u12377 \u12290 \u20302 \u22495 \u12398 \u21046 \u24481 \u12395 \u12399 50mm\u21402 \u20197 \u19978 \u12398 \u12514 \u12487 \u12523 \u12420 \u12467 \u12540 \u12490 \u12540 \u12408 \u12398 \u37197 \u32622 \u12434 \u26908 \u35342 \u12375 \u12414 \u12375 \u12423 \u12358 \u12290 ";\
+\
+    document.getElementById('adviceHeader').textContent = adviceTag;\
+    document.getElementById('adviceHeader').style.background = statusEl.style.color;\
+    document.getElementById('detailedNote').textContent = detailed;\
+\
+    updateChart(rt, targetT);\
+\}\
+\
+function updateChart(data, target) \{\
+    const ctx = document.getElementById('rtChart').getContext('2d');\
+    if (chart) chart.destroy();\
+    chart = new Chart(ctx, \{\
+        type: 'line',\
+        data: \{\
+            labels: ["125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz"],\
+            datasets: [\{\
+                label: '\uc0\u20104 \u28204 \u27531 \u38911 \u26178 \u38291  (sec)',\
+                data: data,\
+                borderColor: '#39d353',\
+                backgroundColor: 'rgba(57, 211, 83, 0.1)',\
+                borderWidth: 3,\
+                fill: true, tension: 0.3\
+            \}, \{\
+                label: '\uc0\u30446 \u27161 ',\
+                data: Array(6).fill(target),\
+                borderColor: '#8b949e',\
+                borderDash: [5, 5],\
+                borderWidth: 1, pointRadius: 0\
+            \}]\
+        \},\
+        options: \{\
+            responsive: true, maintainAspectRatio: false,\
+            scales: \{\
+                y: \{ min: 0, max: 2.5, grid: \{ color: '#30363d' \}, ticks: \{ color: '#8b949e' \} \},\
+                x: \{ grid: \{ color: '#30363d' \}, ticks: \{ color: '#8b949e' \} \}\
+            \},\
+            plugins: \{ legend: \{ labels: \{ color: '#e6edf3', font: \{ size: 10 \} \} \} \}\
+        \}\
+    \});\
+\}\
+\
+function sendToGoogleForm() \{\
+    const baseUrl = "https://docs.google.com/forms/d/e/[\uc0\u35201 \u30906 \u35469 :\u12501 \u12457 \u12540 \u12512 ID]/formResponse";\
+    const app = document.getElementById('appTarget').options[document.getElementById('appTarget').selectedIndex].text;\
+    const dims = `$\{document.getElementById('w').value\}x$\{document.getElementById('d').value\}x$\{document.getElementById('h').value\}`;\
+    const rt = document.getElementById('postRT_Avg').textContent;\
+    \
+    let products = "";\
+    for(let i=0; i<3; i++) \{\
+        const trig = document.getElementById(`trigger_$\{i\}`).textContent;\
+        const qty = document.getElementById(`qty_$\{i\}`).value;\
+        if(qty > 0 && trig !== "\uc0\u35069 \u21697 \u12473 \u12506 \u12483 \u12463 \u12434 \u36984 \u25246 ...") products += `$\{trig\} x $\{qty\} / `;\
+    \}\
+\
+    const params = new URLSearchParams();\
+    params.append("entry.1871431492", app);\
+    params.append("entry.1902994140", dims);\
+    params.append("entry.779901469", products);\
+    params.append("entry.364281805", rt);\
+    params.append("entry.1449240528", "Web\uc0\u12471 \u12511 \u12517 \u12524 \u12540 \u12479 \u12540  Rev 17.5 (Worker Edition) \u36865 \u20449 ");\
+\
+    window.open(`$\{baseUrl\}?$\{params.toString()\}`, '_blank');\
+\}\
+\
+window.onload = init;\
+</script>\
+</body>\
+</html>}
