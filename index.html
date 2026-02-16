@@ -1433,15 +1433,15 @@ function assessRecordingQuality(recordedData, sampleRate, noiseFloor) {
         
         // 具体的な改善提案
         if (quality.snr < 20) {
-            quality.issues.push(`S/N比不足: ${quality.snr.toFixed(1)}dB（推奨: 20dB以上）環境ノイズを減らすか、スピーカー音量を上げてください`);
+            quality.issues.push(\`S/N比不足: \${quality.snr.toFixed(1)}dB（推奨: 20dB以上）環境ノイズを減らすか、スピーカー音量を上げてください\`);
         }
         
         if (quality.dynamicRange < 25) {
-            quality.issues.push(`ダイナミックレンジ不足: ${quality.dynamicRange.toFixed(1)}dB（推奨: 25dB以上）マイクとスピーカーの距離を調整してください`);
+            quality.issues.push(\`ダイナミックレンジ不足: \${quality.dynamicRange.toFixed(1)}dB（推奨: 25dB以上）マイクとスピーカーの距離を調整してください\`);
         }
         
         if (quality.clippingRatio > 1.0) {
-            quality.issues.push(`クリッピング率: ${quality.clippingRatio.toFixed(2)}%（許容: 1%未満）スピーカー音量を下げてください`);
+            quality.issues.push(\`クリッピング率: \${quality.clippingRatio.toFixed(2)}%（許容: 1%未満）スピーカー音量を下げてください\`);
         }
     }
     
@@ -1753,7 +1753,7 @@ self.onmessage = function(e) {
             log('周波数帯域処理開始', { bands: freqBands.length });
             
             for (let i = 0; i < freqBands.length; i++) {
-                log(`===== 帯域 ${i+1}/6 処理開始 =====`, { freq: freqBands[i] + 'Hz' });
+                log(\`===== 帯域 \${i+1}/6 処理開始 =====\`, { freq: freqBands[i] + 'Hz' });
                 
                 const centerFreq = freqBands[i];
                 
@@ -1762,21 +1762,21 @@ self.onmessage = function(e) {
                 const edc = schroederIntegration(filtered);
                 
                 const rtResult = calculateRT(edc, sampleRate);
-                log(`RT計算完了 ${i+1}/6\`, { 
+                log(\`RT計算完了 \${i+1}/6\`, { 
                     method: rtResult.method, 
                     value: rtResult.value,
                     quality: rtResult.quality
                 });
                 
                 const snr = calculateSNR(filtered, noiseFloor);
-                log(`SNR計算完了 ${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
+                log(\`SNR計算完了 \${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
                 
                 rt60Results.push(rtResult.value);
                 snrResults.push(snr);
                 methodsUsed.push(rtResult.method);
                 qualityLevels.push(rtResult.quality);
                 
-                log(`===== 帯域 ${i+1}/6 処理完了 =====`);
+                log(\`===== 帯域 \${i+1}/6 処理完了 =====\`);
             }
             
             log('全帯域処理完了');
@@ -1790,7 +1790,7 @@ self.onmessage = function(e) {
             
             if (minSNR < 15) {
                 overallQuality = 'poor';
-                qualityReason = `S/N比不足（${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。`;
+                qualityReason = \`S/N比不足（\${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。\`;
             }
             
             const successCount = rt60Results.filter(rt => rt !== null).length;
@@ -1798,152 +1798,7 @@ self.onmessage = function(e) {
             
             if (successCount < 4) {
                 overallQuality = 'poor';
-                qualityReason = `測定成功率が低すぎます（${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。`;
-            }
-            
-            const validRT60 = rt60Results.filter(rt => rt !== null && rt >= 0.05 && rt <= 5.0);
-            if (validRT60.length < successCount) {
-                overallQuality = 'poor';
-                qualityReason = 'RT60値が物理的に妥当な範囲外です。測定環境を確認してください。';
-            }
-            
-            const methodCounts = {
-                T60: methodsUsed.filter(m => m === 'T60').length,
-                T30: methodsUsed.filter(m => m === 'T30').length,
-                T20: methodsUsed.filter(m => m === 'T20').length,
-                failed: methodsUsed.filter(m => m === 'failed').length
-            };
-            
-            log('測定手法分布', methodCounts);
-            
-            let primaryMethod = 'T30';
-            if (methodCounts.T60 >= 4) primaryMethod = 'T60';
-            else if (methodCounts.T20 >= 4) primaryMethod = 'T20';
-            
-            log('品質評価完了', { quality: overallQuality, primaryMethod: primaryMethod });
-            log('結果送信中...');
-            
-            self.postMessage({
-                type: 'result',
-                rt60: rt60Results,
-                snr: snrResults,
-                quality: overallQuality,
-                qualityReason: qualityReason,
-                methods: methodsUsed,
-                primaryMethod: primaryMethod,
-                methodCounts: methodCounts
-            });
-            
-            const processingTime = (Date.now() - startTime) / 1000;
-            log('=== Worker完了 ===', { processingTime: processingTime.toFixed(2) + '秒' });
-            
-        } catch (error) {
-            log('❌ エラー発生', { 
-                message: error.message,
-                stack: error.stack
-            });
-            
-            self.postMessage({
-                type: 'error',
-                message: '解析中にエラーが発生しました: ' + error.message
-            });
-        }
-    }
-};
-`;
-
-// ========================================
-// SNR計算
-// ========================================
-function calculateSNR(signal, noiseFloor) {
-    let signalPower = 0;
-    for (let i = 0; i < signal.length; i++) {
-        signalPower += signal[i] * signal[i];
-    }
-    signalPower /= signal.length;
-    
-    const snr = 10 * Math.log10(signalPower / (noiseFloor * noiseFloor));
-    return snr;
-}
-
-// ========================================
-// メインメッセージハンドラ
-// ========================================
-self.onmessage = function(e) {
-    log('=== Worker開始 ===');
-    
-    const { type, data } = e.data;
-    
-    if (type === 'analyze') {
-        log('解析タイプ確認: analyze');
-        const { recordedData, sampleRate, noiseFloor } = data;
-        
-        log('受信データ確認', {
-            dataLength: recordedData.length,
-            sampleRate: sampleRate,
-            noiseFloor: noiseFloor,
-            duration: (recordedData.length / sampleRate).toFixed(2) + '秒'
-        });
-        
-        try {
-            log('解析処理開始');
-            const startTime = Date.now();
-            
-            const freqBands = [125, 250, 500, 1000, 2000, 4000];
-            const rt60Results = [];
-            const snrResults = [];
-            const methodsUsed = [];
-            const qualityLevels = [];
-            
-            log('周波数帯域処理開始', { bands: freqBands.length });
-            
-            for (let i = 0; i < freqBands.length; i++) {
-                log(`===== 帯域 ${i+1}/6 処理開始 =====`, { freq: freqBands[i] + 'Hz' });
-                
-                const centerFreq = freqBands[i];
-                
-                const filtered = applyBandpassFilter(recordedData, sampleRate, centerFreq, centerFreq);
-                
-                const edc = schroederIntegration(filtered);
-                
-                const rtResult = calculateRT(edc, sampleRate);
-                log(`RT計算完了 ${i+1}/6`, { 
-                    method: rtResult.method, 
-                    value: rtResult.value,
-                    quality: rtResult.quality
-                });
-                
-                const snr = calculateSNR(filtered, noiseFloor);
-                log(`SNR計算完了 ${i+1}/6`, { snr: snr.toFixed(1) + 'dB' });
-                
-                rt60Results.push(rtResult.value);
-                snrResults.push(snr);
-                methodsUsed.push(rtResult.method);
-                qualityLevels.push(rtResult.quality);
-                
-                log(`===== 帯域 ${i+1}/6 処理完了 =====`);
-            }
-            
-            log('全帯域処理完了');
-            log('品質評価開始');
-            
-            let overallQuality = 'good';
-            let qualityReason = '';
-            
-            const minSNR = Math.min(...snrResults.filter(s => !isNaN(s)));
-            log('最小SNR', { value: minSNR.toFixed(1) + 'dB' });
-            
-            if (minSNR < 15) {
-                overallQuality = 'poor';
-                qualityReason = \`S/N比不足（${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。`;
-            }
-            
-            const successCount = rt60Results.filter(rt => rt !== null).length;
-            log('測定成功数', { count: successCount + '/6' });
-            
-            if (successCount < 4) {
-                overallQuality = 'poor';
-                qualityReason = \`測定成功率が低すぎます（${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。`;
+                qualityReason = \`測定成功率が低すぎます（\${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。\`;
             }
             
             const validRT60 = rt60Results.filter(rt => rt !== null && rt >= 0.05 && rt <= 5.0);
