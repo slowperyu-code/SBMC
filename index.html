@@ -1753,7 +1753,7 @@ self.onmessage = function(e) {
             log('周波数帯域処理開始', { bands: freqBands.length });
             
             for (let i = 0; i < freqBands.length; i++) {
-                log(\`===== 帯域 \${i+1}/6 処理開始 =====\`, { freq: freqBands[i] + 'Hz' });
+                log(`===== 帯域 ${i+1}/6 処理開始 =====`, { freq: freqBands[i] + 'Hz' });
                 
                 const centerFreq = freqBands[i];
                 
@@ -1776,7 +1776,7 @@ self.onmessage = function(e) {
                 methodsUsed.push(rtResult.method);
                 qualityLevels.push(rtResult.quality);
                 
-                log(`===== 帯域 \${i+1}/6 処理完了 =====`);
+                log(`===== 帯域 ${i+1}/6 処理完了 =====`);
             }
             
             log('全帯域処理完了');
