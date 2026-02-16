@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 17.5): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <title>Soundbox Material Calculator v6.1 (Rev 17.5) | プロフェッショナル調音設計ツール</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --primary: #39d353; 
+            --bg: #0d1117; 
+            --card: #161b22; 
+            --text: #e6edf3; 
+            --dim: #8b949e; 
+            --border: #30363d; 
+            --accent: #388bfd; 
+            --danger: #ff7b72; 
+            --warning: #d29922; 
+            --success: #39d353; 
+            --caution: #f0883e;
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            background-color: var(--bg); 
+            color: var(--text); 
+            padding: 15px; 
+            margin: 0; 
+            font-size: 13px; 
+            line-height: 1.4; 
+        }
+        
+        .container { 
+            max-width: 1000px; 
+            min-width: 800px; 
+            margin: auto; 
+            background: var(--card); 
+            padding: 25px; 
+            border-radius: 12px; 
+            border: 1px solid var(--border); 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5); 
+            position: relative; 
+        }
+        
+        .header { 
+            border-bottom: 1px solid var(--border); 
+            margin-bottom: 20px; 
+            padding-bottom: 12px; 
+            position: relative; 
+        }
+        
+        .header-top { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+        }
+        
+        h2 { 
+            color: var(--primary); 
+            margin: 0; 
+            font-size: 1.4rem; 
+            letter-spacing: 0.5px; 
+        }
+        
+        .subtitle { 
+            font-size: 0.85rem; 
+            color: var(--text); 
+            margin-top: 5px; 
+            font-weight: 500; 
+        }
+        
+        .logic-note { 
+            position: absolute; 
+            bottom: 8px; 
+            right: 0; 
+            font-size: 0.65rem; 
+            color: var(--dim); 
+            font-style: italic; 
+        }
+        
+        .btn-group { 
+            display: flex; 
+            gap: 10px; 
+        }
+        
+        .btn-base { 
+            border: none; 
+            padding: 7px 16px; 
+            border-radius: 4px; 
+            font-size: 0.75rem; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: opacity 0.2s; 
+            text-decoration: none; 
+        }
+        
+        .btn-print { 
+            background: var(--border); 
+            color: var(--text); 
+            border: 1px solid var(--border); 
+        }
+        
+        .btn-estimate { 
+            background: var(--accent); 
+            color: white; 
+        }
+        
+        .btn-base:hover { 
+            opacity: 0.8; 
+        }
+
+        .section-title { 
+            font-size: 0.8rem; 
+            font-weight: bold; 
+            color: var(--accent); 
+            margin: 20px 0 10px 0; 
+            border-left: 3px solid var(--accent); 
+            padding-left: 8px; 
+        }
+        
+        input, select, .custom-select-trigger { 
+            background: var(--bg); 
+            border: 1px solid var(--border); 
+            color: var(--text); 
+            padding: 0 10px; 
+            border-radius: 4px; 
+            width: 100%; 
+            box-sizing: border-box; 
+            font-size: 0.75rem; 
+            height: 36px; 
+            line-height: 34px; 
+            display: flex; 
+            align-items: center; 
+        }
+        
+        .grid-3 { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; 
+            margin-bottom: 10px; 
+        }
+        
+        .grid-row { 
+            display: grid; 
+            grid-template-columns: 2fr 3.5fr 0.8fr 0.8fr 1fr; 
+            gap: 8px; 
+            margin-bottom: 8px; 
+            align-items: end; 
+        }
+        
+        label { 
+            font-size: 0.65rem; 
+            color: var(--dim); 
+            margin-bottom: 4px; 
+            display: block; 
+        }
+        
+        .custom-select-container { 
+            position: relative; 
+            width: 100%; 
+        }
+        
+        .custom-select-trigger { 
+            cursor: pointer; 
+            overflow: hidden; 
+            white-space: nowrap; 
+            text-overflow: ellipsis; 
+            border: 1px solid var(--border); 
+        }
+        
+        .sub-panel { 
+            display: none; 
+            position: absolute; 
+            top: 100%; 
+            left: 0; 
+            width: 540px; 
+            background: #1c2128; 
+            border: 1px solid var(--accent); 
+            border-radius: 8px; 
+            z-index: 100; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
+            padding: 15px; 
+            margin-top: 5px; 
+        }
+        
+        .sub-panel.active { 
+            display: block; 
+        }
+        
+        .panel-cols { 
+            display: grid; 
+            grid-template-columns: 1.4fr 0.8fr 1.2fr; 
+            gap: 12px; 
+        }
+        
+        .col-title { 
+            font-size: 0.6rem; 
+            color: var(--accent); 
+            margin-bottom: 8px; 
+            font-weight: bold; 
+            border-bottom: 1px solid var(--border); 
+            padding-bottom: 4px; 
+        }
+        
+        .col-item { 
+            padding: 6px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin-bottom: 3px; 
+            font-size: 0.7rem; 
+            color: var(--text); 
+        }
+        
+        .col-item:hover { 
+            background: var(--border); 
+        }
+        
+        .col-item.selected { 
+            background: var(--accent); 
+            color: white; 
+            font-weight: bold; 
+        }
+        
+        .res-panel { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 12px; 
+            margin: 20px 0; 
+        }
+        
+        .res-card { 
+            background: var(--bg); 
+            padding: 15px; 
+            border-radius: 10px; 
+            border: 2px solid var(--border); 
+            text-align: center; 
+        }
+        
+        .res-val { 
+            font-size: 1.6rem; 
+            font-weight: bold; 
+            font-family: "Roboto Mono", monospace; 
+        }
+        
+        .chart-wrapper { 
+            position: relative; 
+            height: 320px; 
+            margin-top: 10px; 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
+            padding: 10px; 
+            background: rgba(0,0,0,0.2); 
+        }
+        
+        .footer-note { 
+            margin-top: 20px; 
+            padding: 18px; 
+            background: rgba(56, 139, 253, 0.05); 
+            border-radius: 8px; 
+            border: 1px solid var(--border); 
+        }
+        
+        .advice-tag { 
+            display: inline-block; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-weight: bold; 
+            margin-bottom: 8px; 
+            font-size: 0.7rem; 
+            color: #000; 
+        }
+        
+        #print-only-notice { 
+            display: none; 
+            margin-top: 30px; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            font-size: 0.75rem; 
+            line-height: 1.6; 
+            color: #333; 
+        }
+
+        .mode-switcher { 
+            display: flex; 
+            background: var(--bg); 
+            padding: 4px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border); 
+            margin-bottom: 20px; 
+        }
+        
+        .mode-btn { 
+            flex: 1; 
+            padding: 10px; 
+            border: none; 
+            background: transparent; 
+            color: var(--dim); 
+            cursor: pointer; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            transition: 0.2s; 
+            font-size: 0.75rem; 
+        }
+        
+        .mode-btn.active { 
+            background: var(--accent); 
+            color: white; 
+        }
+        
+        .mode-btn.active.measure { 
+            background: var(--warning); 
+            color: #000; 
+        }
+        
+        .calc-badge { 
+            display: inline-block; 
+            padding: 2px 6px; 
+            border-radius: 3px; 
+            font-size: 0.6rem; 
+            font-weight: bold; 
+            margin-left: 5px;
+            background: var(--accent); 
+            color: white;
+        }
+        
+        .measurement-panel { 
+            background: rgba(56, 139, 253, 0.05); 
+            border: 1px solid var(--accent); 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-bottom: 20px; 
+        }
+        
+        .measure-controls { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr auto; 
+            gap: 10px; 
+            align-items: end; 
+        }
+        
+        .status-msg { 
+            font-size: 0.75rem; 
+            margin-top: 10px; 
+            font-weight: 500; 
+            min-height: 1.2em;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .status-msg.ready { 
+            color: var(--dim); 
+        }
+        
+        .status-msg.calibrating { 
+            background: rgba(210, 153, 34, 0.1);
+            color: var(--warning); 
+        }
+        
+        .status-msg.analyzing { 
+            background: rgba(56, 139, 253, 0.1);
+            color: var(--accent); 
+        }
+        
+        .status-msg.success { 
+            background: rgba(57, 211, 83, 0.1);
+            color: var(--success); 
+        }
+        
+        .status-msg.error { 
+            background: rgba(255, 123, 114, 0.1);
+            color: var(--danger); 
+        }
+        
+        .recording-flash { 
+            display: none;
+            background: rgba(255, 123, 114, 0.1); 
+            border: 2px solid var(--danger); 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        .recording-flash.active { 
+            display: block; 
+            animation: flash-border 1s infinite; 
+        }
+        
+        .flash-icon { 
+            font-size: 2rem; 
+            animation: blink 1s infinite; 
+        }
+        
+        .flash-text { 
+            font-size: 0.9rem; 
+            font-weight: bold; 
+            color: var(--danger); 
+            margin-top: 8px;
+        }
+        
+        @keyframes blink { 
+            0%, 100% { opacity: 1; } 
+            50% { opacity: 0.3; } 
+        }
+        
+        @keyframes flash-border { 
+            0%, 100% { border-color: var(--danger); } 
+            50% { border-color: rgba(255, 123, 114, 0.3); } 
+        }
+        
+        .snr-indicator { 
+            margin-top: 10px; 
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+        }
+        
+        .snr-bar { 
+            position: relative;
+            width: 100%; 
+            height: 20px; 
+            background: var(--border); 
+            border-radius: 10px; 
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .snr-value { 
+            height: 100%; 
+            background: linear-gradient(90deg, var(--danger), var(--warning), var(--success)); 
+            transition: width 0.3s; 
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .warning-box { 
+            background: rgba(255, 123, 114, 0.1); 
+            border: 1px solid var(--danger); 
+            border-radius: 6px; 
+            padding: 12px; 
+            margin-top: 10px;
+            font-size: 0.75rem;
+        }
+        
+        .warning-box button { 
+            margin-top: 8px; 
+            padding: 6px 12px; 
+            background: var(--danger); 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+        
+        .warning-box button:hover { 
+            opacity: 0.8; 
+        }
+        
+        #warning-reason { 
+            margin-top: 5px; 
+            font-size: 0.7rem; 
+            color: var(--dim);
+        }
+
+        @media print {
+            @page { size: A4; margin: 15mm; }
+            body { background: white !important; color: black !important; padding: 0; }
+            .container { box-shadow: none !important; border: none !important; width: 100% !important; max-width: none !important; min-width: 0 !important; background: white !important; padding: 0 !important; }
+            .no-print, .logic-note, .mode-switcher, .measurement-panel { display: none !important; }
+            .header { border-bottom: 2pt solid black !important; }
+            h2, .section-title, .res-val, .subtitle { color: black !important; }
+            input, select, .custom-select-trigger { border: none !important; background: transparent !important; color: black !important; padding: 0 !important; height: auto !important; appearance: none; }
+            .grid-row { border-bottom: 0.5pt solid #eee; padding-bottom: 5px; }
+            .res-card { border: 1pt solid black !important; background: white !important; }
+            .chart-wrapper { border: 1pt solid #ccc !important; background: white !important; height: 300px !important; }
+            .footer-note { border: 1pt solid #ccc !important; background: #f9f9f9 !important; color: black !important; }
+            #print-only-notice { display: block !important; border: none !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="header-top">
+            <h2>Soundbox Material Calculator</h2>
+            <div class="btn-group no-print">
+                <button class="btn-base btn-print" onclick="prepareForPrint()">結果を印刷 / PDF保存</button>
+                <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
+            </div>
+        </div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 17.5): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="logic-note">Hybrid Calculation Engine Active</div>
+    </div>
+
+    <div class="mode-switcher no-print">
+        <button class="mode-btn active" id="btnSim" onclick="setMode('sim')">設計シミュレーション (Sabine)</button>
+        <button class="mode-btn" id="btnMeasure" onclick="setMode('measure')">実測値ベース改善 (Eyring)</button>
+    </div>
+
+    <div id="measurementPanel" class="measurement-panel no-print" style="display:none;">
+        <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-bottom:12px;">
+            🎤 PRO 測定モード (Eyring Method / Log-Sweep Analysis)
+        </div>
+        
+        <div class="measure-controls">
+            <div>
+                <label>入力デバイス (マイク)</label>
+                <select id="micSelect">
+                    <option value="">デバイスを選択...</option>
+                </select>
+            </div>
+            <div>
+                <label>出力デバイス (スピーカー)</label>
+                <select id="spkSelect">
+                    <option value="">デバイスを選択...</option>
+                </select>
+            </div>
+            <button class="btn-base btn-estimate" id="startMeasBtn" onclick="runMeasurementSequence()">
+                測定開始
+            </button>
+        </div>
+        
+        <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
+        
+        <div id="snrIndicator" class="snr-indicator" style="display:none;">
+            <label style="font-size:0.7rem; color:var(--dim);">信号対雑音比 (S/N Ratio)</label>
+            <div class="snr-bar">
+                <div id="snrValue" class="snr-value" style="width:0%;"></div>
+            </div>
+        </div>
+        
+        <div id="recordingAlert" class="recording-flash">
+            <div class="flash-icon">🔴</div>
+            <div class="flash-text">📢 測定中です - 静かにしてください</div>
+        </div>
+        
+        <div id="remeasureWarning" class="warning-box" style="display:none;">
+            <strong>⚠️ データ品質が不足しています</strong>
+            <div id="warningReason"></div>
+            <button onclick="runMeasurementSequence()">再測定を実行</button>
+        </div>
+        
+        <div id="manualInputPanel" style="display:none; margin-top:15px; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px;">
+            <label style="font-size:0.7rem; color:var(--warning); font-weight:bold;">
+                手動入力モード（測定値を直接入力）
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px;">
+                <div>
+                    <label>125Hz</label>
+                    <input type="number" id="m125" value="0.80" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+                <div>
+                    <label>250Hz</label>
+                    <input type="number" id="m250" value="0.70" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+                <div>
+                    <label>500Hz</label>
+                    <input type="number" id="m500" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+                <div>
+                    <label>1kHz</label>
+                    <input type="number" id="m1k" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+                <div>
+                    <label>2kHz</label>
+                    <input type="number" id="m2k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+                <div>
+                    <label>4kHz</label>
+                    <input type="number" id="m4k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()">
+                </div>
+            </div>
+            <div style="font-size:0.65rem; color:var(--dim); margin-top:8px;">
+                ※ 自動測定が利用できない場合、外部測定器で取得した残響時間を入力してください
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">1. 基本環境設定</div>
+    <div class="grid-3">
+        <div>
+            <label>利用目的 (目標値)</label>
+            <select id="appTarget"></select>
+        </div>
+        <div>
+            <label>部屋サイズ W / D / H [m]</label>
+            <div style="display:flex; gap:4px;">
+                <input type="number" id="w" value="4.0" step="0.1">
+                <input type="number" id="d" value="6.0" step="0.1">
+                <input type="number" id="h" value="2.6" step="0.1">
+            </div>
+        </div>
+        <div>
+            <label>壁面仕上げ (ベース)</label>
+            <select id="baseWall"></select>
+        </div>
+    </div>
+    <div class="grid-3">
+        <div>
+            <label>天井仕上げ</label>
+            <select id="baseCeiling"></select>
+        </div>
+        <div>
+            <label>床仕上げ</label>
+            <select id="baseFloor"></select>
+        </div>
+        <div style="display:flex; align-items:flex-end; padding-bottom:5px;">
+            <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px;">
+            <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">
+                開口部(窓等)を考慮する
+            </label>
+        </div>
+    </div>
+
+    <div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">
+        <div class="grid-3" style="grid-template-columns: 2fr 1fr 1fr;">
+            <div>
+                <label>追加素材</label>
+                <select id="exMat"></select>
+            </div>
+            <div>
+                <label>面積 [㎡]</label>
+                <input type="number" id="exArea" value="2.0" step="0.1">
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">2. 製品セレクション</div>
+    <div id="sbInputs"></div>
+
+    <div class="res-panel">
+        <div class="res-card">
+            <label style="font-size:0.6rem">平均残響時間 (500Hz-1kHz)</label>
+            <div id="postRT_Avg" class="res-val">-</div>
+            <div id="targetLabel" style="font-size:0.6rem; color:var(--dim)">目標: -</div>
+            <div id="calcMethod" style="font-size:0.55rem; color:var(--dim); margin-top:3px;">
+                <span class="calc-badge" id="methodBadge">SABINE</span>
+            </div>
+        </div>
+        <div class="res-card" id="cardHealth">
+            <label style="font-size:0.6rem">実用性評価</label>
+            <div id="achievementRate" class="res-val">-</div>
+            <div id="healthStatus" style="font-size:0.65rem; font-weight:bold;">-</div>
+        </div>
+        <div class="res-card">
+            <label style="font-size:0.6rem">導入面積 / 拡散寄与度</label>
+            <div id="totalPanelArea" class="res-val" style="font-size:1.1rem;">-</div>
+            <div id="diffusionBalance" style="font-size:0.65rem; color:var(--primary)">-</div>
+        </div>
+    </div>
+
+    <div class="chart-wrapper">
+        <canvas id="rtChart"></canvas>
+    </div>
+
+    <div class="footer-note">
+        <div id="adviceHeader" class="advice-tag"></div>
+        <div id="detailedNote" style="font-size:0.75rem;"></div>
+    </div>
+
+    <div id="print-only-notice">
+        <strong>【ご案内】</strong><br>
+        本シミュレーション結果は、入力された条件下におけるセービン式に基づいた計算目安であり、実際の施工現場の環境（家具の配置、下地の構造、温湿度等）により変動する場合があります。<br>
+        より高度な詳細解析や、パネルの具体的な配置計画（反射音分布の最適化など）をご希望の場合は、<strong>AFMG EASE</strong> によるシミュレーション、または弊社専門スタッフまでお問い合わせください。
+    </div>
+</div>
+
+<script>
+const SOUNDBOX_DB = {
+    apps: [
+        { id: "office", name: "オフィス / 一般会議室 (0.6s)", t: 0.6 },
+        { id: "web_mtg", name: "Web会議室 / オンラインMTG (0.4s)", t: 0.4 },
+        { id: "studio", name: "レコーディングスタジオ (0.4s)", t: 0.4 },
+        { id: "audio", name: "オーディオルーム / ホームシアター (0.45s)", t: 0.45 },
+        { id: "living", name: "リビング / 一般住宅 (0.5s)", t: 0.5 },
+        { id: "broadcast", name: "配信スタジオ / ポッドキャスト (0.35s)", t: 0.35 },
+        { id: "classroom", name: "教室 / セミナールーム (0.7s)", t: 0.7 },
+        { id: "hall", name: "多目的ホール / 体育館 (1.2s)", t: 1.2 }
+    ],
+    materials: {
+        "plasterboard": { name: "石膏ボード + 壁紙", data: [0.29, 0.10, 0.05, 0.04, 0.07, 0.09] },
+        "concrete": { name: "コンクリート打放し", data: [0.01, 0.01, 0.01, 0.02, 0.02, 0.03] },
+        "glass": { name: "ガラス窓 / 鏡", data: [0.35, 0.25, 0.18, 0.12, 0.07, 0.04] },
+        "carpet": { name: "タイルカーペット", data: [0.02, 0.05, 0.10, 0.20, 0.30, 0.40] },
+        "wood": { name: "フローリング / 木板", data: [0.15, 0.11, 0.10, 0.07, 0.06, 0.07] },
+        "curtain": { name: "カーテン (重目/プリーツ有)", data: [0.07, 0.31, 0.49, 0.75, 0.70, 0.60] },
+        "gw_insulation": { name: "グラスウール断熱材 (50mm/32k)", data: [0.25, 0.65, 0.95, 0.98, 0.95, 0.90] }
+    },
+    products: {
+        "STANDARD": {
+            name: "1. スタンダードパネル (EQ Series)",
+            models: {
+                "STD": { n: "EQ Standard", d: { "30": [0.20, 0.50, 0.95, 1.05, 1.05, 1.00], "60": [0.30, 0.80, 1.10, 1.10, 1.00, 1.00], "120": [0.50, 0.95, 1.10, 1.05, 1.00, 0.95] }, s: { "6x6": 0.36, "6x12": 0.72 } },
+                "R": { n: "EQ R (Rococo)", d: { "30": [0.25, 0.55, 0.98, 1.08, 1.07, 1.02], "60": [0.35, 0.85, 1.12, 1.12, 1.02, 1.02], "120": [0.55, 0.98, 1.12, 1.08, 1.02, 0.98] }, s: { "6x6": 0.36, "6x12": 0.72 } },
+                "B": { n: "EQ B (Baroque)", d: { "30": [0.22, 0.52, 0.96, 1.06, 1.06, 1.01], "60": [0.32, 0.82, 1.11, 1.11, 1.01, 1.01], "120": [0.52, 0.96, 1.11, 1.06, 1.01, 0.96] }, s: { "6x6": 0.36, "6x12": 0.72 } },
+                "F": { n: "EQ Fabric", d: { "30": [0.18, 0.48, 0.93, 1.03, 1.03, 0.98], "60": [0.28, 0.78, 1.08, 1.08, 0.98, 0.98] }, s: { "6x6": 0.36, "6x12": 0.72 } }
+            }
+        },
+        "OFFICE_FABRIC": {
+            name: "2. オフィス用ファブリック (Walleasear)",
+            models: {
+                "EQ30T": { n: "EQ 30T (大面積施工)", d: { "30": [0.19, 0.49, 0.94, 1.04, 1.04, 0.99] }, s: { "12x6": 0.72, "24x6": 1.44 } },
+                "EQ60T": { n: "EQ 60T (大面積施工)", d: { "60": [0.29, 0.79, 1.09, 1.09, 0.99, 0.99] }, s: { "12x6": 0.72, "24x6": 1.44 } },
+                "EQ100T": { n: "EQ 100T (大面積施工)", d: { "100": [0.45, 0.92, 1.10, 1.07, 1.00, 0.96] }, s: { "12x6": 0.72, "24x6": 1.44 } }
+            }
+        },
+        "ENGINEERING": {
+            name: "3. エンジニアリング製品",
+            models: {
+                "MT_BAFFLE": { n: "MT Baffle (天井吊下げ)", d: { "40": [0.42, 0.78, 0.95, 0.98, 0.98, 0.96] }, s: { "6x4": 0.24, "12x4": 0.48 } },
+                "CM": { n: "CM Series (クラウド/天井用)", d: { "30": [0.21, 0.53, 0.88, 0.96, 0.98, 0.94], "60": [0.38, 0.84, 1.05, 1.08, 1.02, 0.98] }, s: { "6x6": 0.36 } },
+                "IMAGINE": { n: "Imagine Panel (意匠パネル)", d: { "30": [0.17, 0.46, 0.91, 1.02, 1.03, 0.97] }, s: { "6x6": 0.36 } }
+            }
+        },
+        "BROADBAND": {
+            name: "4. ブロードバンド吸音材",
+            models: {
+                "F300H": { n: "F300H (高域特化)", d: { "30": [0.10, 0.35, 0.70, 0.95, 1.08, 1.05] }, s: { "3x3": 0.09 } },
+                "F300M": { n: "F300M (中域特化)", d: { "30": [0.15, 0.55, 0.98, 1.05, 0.95, 0.85] }, s: { "3x3": 0.09 } },
+                "F300W": { n: "F300W (低域特化)", d: { "30": [0.35, 0.75, 0.95, 0.90, 0.80, 0.70] }, s: { "3x3": 0.09 } }
+            }
+        },
+        "BASSTRAP": {
+            name: "5. ベーストラップ (低域制御)",
+            models: {
+                "C300W": { n: "C300W (コーナー用)", d: { "300": [0.65, 0.95, 1.05, 1.00, 0.92, 0.85] }, s: { "3x3": 0.09 } },
+                "CYLINDER350": { n: "Cylinder 350 (円筒型)", d: { "350": [0.70, 0.98, 1.08, 1.02, 0.94, 0.88] }, s: { "custom": 0.12 } }
+            }
+        },
+        "DIFFUSION": {
+            name: "6. 拡散パネル (響きの調整)",
+            models: {
+                "CLOUD2C": { n: "Cloud 2C (平面拡散)", d: { "70": [0.05, 0.10, 0.15, 0.12, 0.10, 0.08] }, s: { "6x6": 0.36 }, diffusion: 0.7 },
+                "CLOUD2D": { n: "Cloud 2D (凹凸拡散)", d: { "70": [0.08, 0.15, 0.22, 0.18, 0.15, 0.12] }, s: { "6x6": 0.36 }, diffusion: 0.85 },
+                "PEAK_SQ": { n: "Peak SQ (スカイライン)", d: { "80": [0.10, 0.18, 0.25, 0.20, 0.18, 0.15] }, s: { "6x6": 0.36 }, diffusion: 0.9 },
+                "QRD_N29": { n: "QRD N29 (二次元拡散)", d: { "100": [0.12, 0.20, 0.28, 0.25, 0.22, 0.18] }, s: { "6x6": 0.36 }, diffusion: 0.95 }
+            }
+        },
+        "HYBRID": {
+            name: "7. ハイブリッド (吸音+拡散)",
+            models: {
+                "AQ1000S": { n: "AQ 1000S", d: { "50": [0.25, 0.60, 0.85, 0.88, 0.82, 0.75] }, s: { "6x6": 0.36 }, diffusion: 0.4 },
+                "WAVE600": { n: "WAVE 600", d: { "60": [0.30, 0.68, 0.92, 0.95, 0.88, 0.80] }, s: { "6x6": 0.36 }, diffusion: 0.5 },
+                "BREEZE": { n: "Breeze (意匠性ハイブリッド)", d: { "40": [0.20, 0.55, 0.88, 0.92, 0.85, 0.78] }, s: { "6x6": 0.36 }, diffusion: 0.35 }
+            }
+        }
+    }
+};
+
+const FREQS = [125, 250, 500, 1000, 2000, 4000];
+let chart;
+let selectedSpecs = [{}, {}, {}];
+let lastData = {};
+let currentMode = 'sim';
+let measurementData = null;
+
+function init() {
+    const appSelect = document.getElementById('appTarget');
+    SOUNDBOX_DB.apps.forEach((app, idx) => {
+        const option = document.createElement('option');
+        option.value = idx;
+        option.textContent = app.name;
+        appSelect.appendChild(option);
+    });
+
+    const materialSelects = ['baseWall', 'baseCeiling', 'baseFloor', 'exMat'];
+    materialSelects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        for (let key in SOUNDBOX_DB.materials) {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = SOUNDBOX_DB.materials[key].name;
+            select.appendChild(option);
+        }
+    });
+
+    const sbInputsContainer = document.getElementById('sbInputs');
+    sbInputsContainer.innerHTML = '';
+    
+    for (let i = 0; i < 3; i++) {
+        const row = document.createElement('div');
+        row.className = 'grid-row';
+        row.innerHTML = `
+            <div>
+                <label>カテゴリー</label>
+                <select id="cat_${i}" onchange="onCategoryChange(${i})"></select>
+            </div>
+            <div class="custom-select-container">
+                <div class="custom-select-trigger" id="trigger_${i}" onclick="togglePanel(${i})">
+                    製品スペックを選択...
+                </div>
+                <div class="sub-panel" id="panel_${i}">
+                    <div class="panel-cols">
+                        <div id="col_model_${i}"></div>
+                        <div id="col_thick_${i}"></div>
+                        <div id="col_size_${i}"></div>
+                    </div>
+                </div>
+            </div>
+            <input type="number" id="qty_${i}" value="0" min="0" step="1" oninput="calculate()">
+            <div id="unitArea_${i}" style="font-size:0.65rem; color:var(--dim); text-align:center;">-</div>
+            <div id="totalArea_${i}" style="font-size:0.7rem; color:var(--primary); text-align:right; font-weight:bold;">-</div>
+        `;
+        sbInputsContainer.appendChild(row);
+
+        const catSelect = document.getElementById(`cat_${i}`);
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '選択してください...';
+        catSelect.appendChild(defaultOption);
+        
+        for (let catKey in SOUNDBOX_DB.products) {
+            const option = document.createElement('option');
+            option.value = catKey;
+            option.textContent = SOUNDBOX_DB.products[catKey].name;
+            catSelect.appendChild(option);
+        }
+    }
+
+    document.getElementById('appTarget').addEventListener('change', calculate);
+    document.getElementById('w').addEventListener('input', calculate);
+    document.getElementById('d').addEventListener('input', calculate);
+    document.getElementById('h').addEventListener('input', calculate);
+    document.getElementById('baseWall').addEventListener('change', calculate);
+    document.getElementById('baseCeiling').addEventListener('change', calculate);
+    document.getElementById('baseFloor').addEventListener('change', calculate);
+    document.getElementById('exArea').addEventListener('input', calculate);
+    document.getElementById('exMat').addEventListener('change', calculate);
+    
+    document.getElementById('showSpecial').addEventListener('change', function() {
+        document.getElementById('specialPanel').style.display = this.checked ? 'block' : 'none';
+        calculate();
+    });
+
+    calculate();
+}
+
+function setMode(mode) {
+    currentMode = mode;
+    
+    const btnSim = document.getElementById('btnSim');
+    const btnMeasure = document.getElementById('btnMeasure');
+    
+    if (mode === 'sim') {
+        btnSim.classList.add('active');
+        btnSim.classList.remove('measure');
+        btnMeasure.classList.remove('active');
+        btnMeasure.classList.remove('measure');
+        document.getElementById('measurementPanel').style.display = 'none';
+    } else {
+        btnSim.classList.remove('active');
+        btnMeasure.classList.add('active', 'measure');
+        document.getElementById('measurementPanel').style.display = 'block';
+        enumerateDevices();
+    }
+    
+    const methodBadge = document.getElementById('methodBadge');
+    methodBadge.textContent = mode === 'sim' ? 'SABINE' : 'EYRING';
+    methodBadge.style.background = mode === 'sim' ? 'var(--accent)' : 'var(--warning)';
+    
+    calculate();
+}
+
+async function enumerateDevices() {
+    const statusEl = document.getElementById('measureStatus');
+    const micSelect = document.getElementById('micSelect');
+    const spkSelect = document.getElementById('spkSelect');
+    
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('このブラウザは音声入力に対応していません。Chrome/Edge/Firefoxをご利用ください。');
+        }
+        
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+            throw new Error('セキュリティ上の理由により、HTTPSページでのみ動作します。');
+        }
+        
+        statusEl.textContent = 'マイクへのアクセス権限をリクエスト中...';
+        statusEl.className = 'status-msg calibrating';
+        
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                } 
+            });
+        } catch (permError) {
+            if (permError.name === 'NotAllowedError') {
+                throw new Error('マイクへのアクセスが拒否されました。ブラウザのアドレスバー横のアイコンからマイクを許可してください。');
+            } else if (permError.name === 'NotFoundError') {
+                throw new Error('マイクデバイスが見つかりません。マイクが接続されているか確認してください。');
+            } else {
+                throw new Error('マイクへのアクセスに失敗しました: ' + permError.message);
+            }
+        }
+        
+        statusEl.textContent = 'デバイスを検索中...';
+        
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        micSelect.innerHTML = '<option value="">デバイスを選択...</option>';
+        spkSelect.innerHTML = '<option value="">デバイスを選択...</option>';
+        
+        let micCount = 0;
+        let spkCount = 0;
+        
+        devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            
+            if (device.label) {
+                option.textContent = device.label;
+            } else {
+                option.textContent = `${device.kind === 'audioinput' ? 'マイク' : 'スピーカー'} ${device.deviceId.substr(0, 8)}...`;
+            }
+            
+            if (device.kind === 'audioinput') {
+                micSelect.appendChild(option);
+                micCount++;
+            } else if (device.kind === 'audiooutput') {
+                spkSelect.appendChild(option);
+                spkCount++;
+            }
+        });
+        
+        if (micCount > 0) {
+            statusEl.textContent = `✅ デバイス検出完了: マイク ${micCount}台、スピーカー ${spkCount}台`;
+            statusEl.className = 'status-msg ready';
+            
+            if (micSelect.options.length > 1) {
+                micSelect.selectedIndex = 1;
+            }
+            if (spkSelect.options.length > 1) {
+                spkSelect.selectedIndex = 1;
+            }
+        } else {
+            statusEl.textContent = '⚠️ マイクデバイスが見つかりません。マイクが接続されているか確認してください。';
+            statusEl.className = 'status-msg error';
+        }
+        
+    } catch (error) {
+        let errorMsg = 'デバイスの取得に失敗しました';
+        
+        if (error.message) {
+            errorMsg = error.message;
+        }
+        
+        statusEl.textContent = '❌ ' + errorMsg;
+        statusEl.className = 'status-msg error';
+        
+        micSelect.innerHTML = '<option value="">デバイスを選択...</option>';
+        spkSelect.innerHTML = '<option value="">デバイスを選択...</option>';
+    }
+}
+
+function onCategoryChange(index) {
+    selectedSpecs[index] = {};
+    document.getElementById(`trigger_${index}`).textContent = '製品スペックを選択...';
+    document.getElementById(`panel_${index}`).classList.remove('active');
+    document.getElementById(`unitArea_${index}`).textContent = '-';
+    document.getElementById(`totalArea_${index}`).textContent = '-';
+    renderPanel(index);
+    calculate();
+}
+
+function togglePanel(index) {
+    const panel = document.getElementById(`panel_${index}`);
+    const isActive = panel.classList.contains('active');
+    
+    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+    
+    if (!isActive) {
+        panel.classList.add('active');
+        renderPanel(index);
+    }
+}
+
+function renderPanel(index) {
+    const categoryKey = document.getElementById(`cat_${index}`).value;
+    
+    if (!categoryKey) {
+        document.getElementById(`col_model_${index}`).innerHTML = '<div class="col-title">MODEL</div>';
+        document.getElementById(`col_thick_${index}`).innerHTML = '<div class="col-title">THICKNESS</div>';
+        document.getElementById(`col_size_${index}`).innerHTML = '<div class="col-title">SIZE</div>';
+        return;
+    }
+    
+    const category = SOUNDBOX_DB.products[categoryKey];
+    const spec = selectedSpecs[index];
+    
+    const modelCol = document.getElementById(`col_model_${index}`);
+    modelCol.innerHTML = '<div class="col-title">MODEL</div>';
+    
+    for (let modelKey in category.models) {
+        const modelDiv = document.createElement('div');
+        modelDiv.className = 'col-item';
+        if (spec.model === modelKey) modelDiv.classList.add('selected');
+        modelDiv.textContent = category.models[modelKey].n;
+        modelDiv.onclick = () => selectModel(index, categoryKey, modelKey);
+        modelCol.appendChild(modelDiv);
+    }
+    
+    const thickCol = document.getElementById(`col_thick_${index}`);
+    thickCol.innerHTML = '<div class="col-title">THICKNESS</div>';
+    
+    if (spec.model) {
+        const model = category.models[spec.model];
+        for (let thickKey in model.d) {
+            const thickDiv = document.createElement('div');
+            thickDiv.className = 'col-item';
+            if (spec.thick === thickKey) thickDiv.classList.add('selected');
+            thickDiv.textContent = thickKey + 'mm';
+            thickDiv.onclick = () => selectThickness(index, categoryKey, spec.model, thickKey);
+            thickCol.appendChild(thickDiv);
+        }
+    }
+    
+    const sizeCol = document.getElementById(`col_size_${index}`);
+    sizeCol.innerHTML = '<div class="col-title">SIZE</div>';
+    
+    if (spec.model && spec.thick) {
+        const model = category.models[spec.model];
+        for (let sizeKey in model.s) {
+            const sizeDiv = document.createElement('div');
+            sizeDiv.className = 'col-item';
+            if (spec.size === sizeKey) sizeDiv.classList.add('selected');
+            sizeDiv.textContent = sizeKey;
+            sizeDiv.onclick = () => selectSize(index, categoryKey, spec.model, spec.thick, sizeKey);
+            sizeCol.appendChild(sizeDiv);
+        }
+    }
+}
+
+function selectModel(index, categoryKey, modelKey) {
+    selectedSpecs[index] = { category: categoryKey, model: modelKey };
+    renderPanel(index);
+}
+
+function selectThickness(index, categoryKey, modelKey, thickKey) {
+    selectedSpecs[index].thick = thickKey;
+    renderPanel(index);
+}
+
+function selectSize(index, categoryKey, modelKey, thickKey, sizeKey) {
+    selectedSpecs[index].size = sizeKey;
+    
+    const model = SOUNDBOX_DB.products[categoryKey].models[modelKey];
+    document.getElementById(`trigger_${index}`).textContent = 
+        `${model.n} / ${thickKey}mm / ${sizeKey}`;
+    
+    const unitArea = model.s[sizeKey];
+    document.getElementById(`unitArea_${index}`).textContent = unitArea.toFixed(2) + '㎡';
+    
+    document.getElementById(`panel_${index}`).classList.remove('active');
+    
+    calculate();
+}
+
+function prepareForPrint() {
+    window.print();
+}
+
+function calculate() {
+    const w = parseFloat(document.getElementById('w').value) || 0.1;
+    const d = parseFloat(document.getElementById('d').value) || 0.1;
+    const h = parseFloat(document.getElementById('h').value) || 0.1;
+    
+    const V = w * d * h;
+    const S_total = 2 * (w * d + d * h + h * w);
+    const S_wall = 2 * (d * h + h * w);
+    const S_ceiling = w * d;
+    const S_floor = w * d;
+    
+    if (V <= 0 || S_total <= 0) {
+        return;
+    }
+    
+    const L_mean = (4 * V) / S_total;
+    const diffusionIndicator = (L_mean * 0.12).toFixed(2);
+    
+    const appIndex = parseInt(document.getElementById('appTarget').value) || 0;
+    const targetObj = SOUNDBOX_DB.apps[appIndex];
+    const targetRT = targetObj.t;
+    
+    const wallMat = SOUNDBOX_DB.materials[document.getElementById('baseWall').value];
+    const ceilingMat = SOUNDBOX_DB.materials[document.getElementById('baseCeiling').value];
+    const floorMat = SOUNDBOX_DB.materials[document.getElementById('baseFloor').value];
+    
+    let exArea = 0;
+    let exMat = null;
+    if (document.getElementById('showSpecial').checked) {
+        exArea = parseFloat(document.getElementById('exArea').value) || 0;
+        const exMatKey = document.getElementById('exMat').value;
+        exMat = SOUNDBOX_DB.materials[exMatKey];
+    }
+    
+    const actualWallArea = Math.max(0, S_wall - exArea);
+    
+    const rt_before = [];
+    const rt_after = [];
+    
+    const m_coeffs = [0, 0, 0, 0, 0.002, 0.007];
+    
+    for (let i = 0; i < 6; i++) {
+        const freq = FREQS[i];
+        
+        let A_base = 0;
+        A_base += actualWallArea * wallMat.data[i];
+        A_base += S_ceiling * ceilingMat.data[i];
+        A_base += S_floor * floorMat.data[i];
+        if (exArea > 0 && exMat) {
+            A_base += exArea * exMat.data[i];
+        }
+        
+        const airAbsorption = 4 * m_coeffs[i] * V;
+        
+        let rt_b;
+        
+        if (currentMode === 'measure' && measurementData && measurementData[i]) {
+            rt_b = measurementData[i];
+        } else {
+            rt_b = (0.161 * V) / (A_base + airAbsorption);
+        }
+        
+        rt_before.push(rt_b);
+        
+        let A_panels = 0;
+        
+        for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
+            const spec = selectedSpecs[panelIdx];
+            const qty = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
+            
+            if (spec.category && spec.model && spec.thick && spec.size && qty > 0) {
+                const product = SOUNDBOX_DB.products[spec.category].models[spec.model];
+                const alpha = product.d[spec.thick][i];
+                const unitArea = product.s[spec.size];
+                
+                A_panels += unitArea * qty * (alpha - wallMat.data[i]);
+            }
+        }
+        
+        const A_total = A_base + A_panels + airAbsorption;
+        
+        const avgAlpha = Math.min(A_total / S_total, 0.999);
+        
+        let rt_a;
+        
+        if (currentMode === 'measure') {
+            rt_a = (0.161 * V) / (-S_total * Math.log(1 - avgAlpha) + airAbsorption);
+        } else {
+            rt_a = (0.161 * V) / A_total;
+        }
+        
+        rt_after.push(rt_a);
+    }
+    
+    const avgRT_before = (rt_before[2] + rt_before[3]) / 2;
+    const avgRT_after = (rt_after[2] + rt_after[3]) / 2;
+    
+    let totalPanelM2 = 0;
+    
+    for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
+        const spec = selectedSpecs[panelIdx];
+        const qty = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
+        
+        if (spec.category && spec.model && spec.size && qty > 0) {
+            const product = SOUNDBOX_DB.products[spec.category].models[spec.model];
+            const unitArea = product.s[spec.size];
+            totalPanelM2 += unitArea * qty;
+            
+            document.getElementById(`totalArea_${panelIdx}`).textContent = 
+                (unitArea * qty).toFixed(2) + '㎡';
+        } else {
+            document.getElementById(`totalArea_${panelIdx}`).textContent = '-';
+        }
+    }
+    
+    const usableSurface = S_wall * 0.8;
+    
+    const achievementRate = (targetRT / avgRT_after) * 100;
+    
+    updateUI(rt_before, rt_after, avgRT_before, avgRT_after, targetRT, targetObj, 
+             achievementRate, totalPanelM2, usableSurface, V, diffusionIndicator);
+}
+
+function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj, 
+                  achievementRate, totalPanelM2, usableSurface, V, diffusionIndicator) {
+    
+    document.getElementById('postRT_Avg').textContent = avgAfter.toFixed(2) + 's';
+    document.getElementById('targetLabel').textContent = `目標: ${targetRT}s`;
+    
+    document.getElementById('achievementRate').textContent = achievementRate.toFixed(0) + '%';
+    
+    document.getElementById('totalPanelArea').textContent = 
+        `${totalPanelM2.toFixed(1)} / ${usableSurface.toFixed(1)}㎡`;
+    
+    document.getElementById('diffusionBalance').textContent = 
+        `拡散寄与度: ${diffusionIndicator}`;
+    
+    const cardHealth = document.getElementById('cardHealth');
+    const healthStatus = document.getElementById('healthStatus');
+    const adviceHeader = document.getElementById('adviceHeader');
+    const detailedNote = document.getElementById('detailedNote');
+    
+    let status, statusColor, adviceTagColor, adviceText;
+    
+    if (totalPanelM2 > usableSurface) {
+        status = '設置限界超過';
+        statusColor = 'var(--danger)';
+        adviceTagColor = '#ff7b72';
+        adviceHeader.textContent = 'FAIL';
+        adviceHeader.style.background = adviceTagColor;
+        adviceText = '壁面の有効面積（80%）を超えるパネルが配置されています。パネル枚数を減らすか、より厚型のパネルへの変更を検討してください。';
+    }
+    else if (achievementRate >= 120) {
+        status = '響きが少ない';
+        statusColor = 'var(--caution)';
+        adviceTagColor = '#f0883e';
+        adviceHeader.textContent = 'OVER';
+        adviceHeader.style.background = adviceTagColor;
+        adviceText = '空間がデッド過ぎる傾向にあります。拡散パネルを活用してください。';
+    }
+    else if (achievementRate >= 100) {
+        status = '理想的';
+        statusColor = 'var(--success)';
+        adviceTagColor = '#39d353';
+        adviceHeader.textContent = 'IDEAL';
+        adviceHeader.style.background = adviceTagColor;
+        adviceText = '理想的な数値です。目標の残響時間を達成しています。';
+    }
+    else if (achievementRate >= 80) {
+        status = '実用レベル';
+        statusColor = 'var(--accent)';
+        adviceTagColor = '#388bfd';
+        adviceHeader.textContent = 'GOOD';
+        adviceHeader.style.background = adviceTagColor;
+        adviceText = '実用上十分な導入効果です。低域の制御には厚型を検討してください。';
+    }
+    else {
+        status = '吸音不足';
+        statusColor = 'var(--danger)';
+        adviceTagColor = '#ff7b72';
+        adviceHeader.textContent = 'UNDER';
+        adviceHeader.style.background = adviceTagColor;
+        adviceText = '目標残響時間に達していません。パネル増設を推奨します。';
+    }
+    
+    healthStatus.textContent = status;
+    healthStatus.style.color = statusColor;
+    cardHealth.style.borderColor = statusColor;
+    
+    if (V < 30) {
+        adviceText += '<br><br><strong style="color:#ffb86c;">⚠️ Small Room Analysis</strong><br>';
+        adviceText += '本空間は容積が小さいため、計算上の数値よりも、平行面で発生する定在波（ブーミング）の抑制が重要です。壁面の中央だけでなく、入隅（コーナー）への吸音材配置を優先することで、低域のエネルギーを効率的に処理できます。';
+    }
+    
+    if (rt_after[0] > avgAfter * 1.5) {
+        adviceText += '<br><br><strong style="color:#ffb86c;">⚠️ 125Hz 低域残響警告</strong><br>';
+        adviceText += '125Hzの残響時間が突出しています。低域の制御には120mm厚のパネル、またはコーナー配置のベーストラップを推奨します。';
+    }
+    
+    detailedNote.innerHTML = adviceText;
+    
+    updateChart(rt_before, rt_after, targetRT);
+    
+    lastData = {
+        rt_after: avgAfter,
+        rt_before: avgBefore,
+        targetRT: targetRT,
+        achievementRate: achievementRate,
+        totalPanelM2: totalPanelM2,
+        V: V,
+        status: status
+    };
+}
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+
+<script>
+const workerCode = `
+function fft(real, imag) {
+    const n = real.length;
+    if (n <= 1) return;
+    
+    let j = 0;
+    for (let i = 0; i < n - 1; i++) {
+        if (i < j) {
+            [real[i], real[j]] = [real[j], real[i]];
+            [imag[i], imag[j]] = [imag[j], imag[i]];
+        }
+        let k = n >> 1;
+        while (k <= j) {
+            j -= k;
+            k >>= 1;
+        }
+        j += k;
+    }
+    
+    for (let len = 2; len <= n; len <<= 1) {
+        const angle = -2 * Math.PI / len;
+        const wlen_r = Math.cos(angle);
+        const wlen_i = Math.sin(angle);
+        
+        for (let i = 0; i < n; i += len) {
+            let w_r = 1;
+            let w_i = 0;
+            
+            for (let j = 0; j < len / 2; j++) {
+                const u_r = real[i + j];
+                const u_i = imag[i + j];
+                const v_r = real[i + j + len / 2] * w_r - imag[i + j + len / 2] * w_i;
+                const v_i = real[i + j + len / 2] * w_i + imag[i + j + len / 2] * w_r;
+                
+                real[i + j] = u_r + v_r;
+                imag[i + j] = u_i + v_i;
+                real[i + j + len / 2] = u_r - v_r;
+                imag[i + j + len / 2] = u_i - v_i;
+                
+                const temp_r = w_r * wlen_r - w_i * wlen_i;
+                w_i = w_r * wlen_i + w_i * wlen_r;
+                w_r = temp_r;
+            }
+        }
+    }
+}
+
+function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
+    const lowFreq = centerFreq / Math.sqrt(2);
+    const highFreq = centerFreq * Math.sqrt(2);
+    
+    const n = data.length;
+    const real = new Float32Array(data);
+    const imag = new Float32Array(n);
+    
+    fft(real, imag);
+    
+    for (let i = 0; i < n; i++) {
+        const freq = i * sampleRate / n;
+        if (freq < lowFreq || freq > highFreq) {
+            real[i] = 0;
+            imag[i] = 0;
+        }
+    }
+    
+    for (let i = 0; i < n; i++) {
+        imag[i] = -imag[i];
+    }
+    fft(real, imag);
+    for (let i = 0; i < n; i++) {
+        real[i] /= n;
+        imag[i] = -imag[i] / n;
+    }
+    
+    return real;
+}
+
+function schroederIntegration(impulseResponse) {
+    const n = impulseResponse.length;
+    const edc = new Float32Array(n);
+    
+    let sum = 0;
+    for (let i = n - 1; i >= 0; i--) {
+        sum += impulseResponse[i] * impulseResponse[i];
+        edc[i] = sum;
+    }
+    
+    const maxEnergy = edc[0];
+    if (maxEnergy > 0) {
+        for (let i = 0; i < n; i++) {
+            edc[i] /= maxEnergy;
+        }
+    }
+    
+    return edc;
+}
+
+function tryMeasureRT(edcDB, sampleRate, startDB, endDB) {
+    const n = edcDB.length;
+    
+    let tStart = -1;
+    for (let i = 0; i < n; i++) {
+        if (edcDB[i] <= startDB) {
+            tStart = i;
+            break;
+        }
+    }
+    
+    if (tStart < 0) {
+        return { success: false, time: null };
+    }
+    
+    let tEnd = -1;
+    for (let i = tStart; i < n; i++) {
+        if (edcDB[i] <= endDB) {
+            tEnd = i;
+            break;
+        }
+    }
+    
+    if (tEnd < 0 || tEnd <= tStart) {
+        return { success: false, time: null };
+    }
+    
+    const decayTime = (tEnd - tStart) / sampleRate;
+    
+    if (decayTime < 0.01 || decayTime > 10.0) {
+        return { success: false, time: null };
+    }
+    
+    return { success: true, time: decayTime };
+}
+
+function calculateRT(edc, sampleRate) {
+    const n = edc.length;
+    
+    const edcDB = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+        edcDB[i] = 10 * Math.log10(Math.max(edc[i], 1e-10));
+    }
+    
+    const t60Result = tryMeasureRT(edcDB, sampleRate, -5, -65);
+    if (t60Result.success) {
+        return {
+            value: t60Result.time,
+            method: 'T60',
+            quality: 'excellent',
+            description: 'RT60直接測定（60dBダイナミックレンジ）'
+        };
+    }
+    
+    const t30Result = tryMeasureRT(edcDB, sampleRate, -5, -35);
+    if (t30Result.success) {
+        return {
+            value: t30Result.time * 2.0,
+            method: 'T30',
+            quality: 'good',
+            description: 'T30測定（30dBダイナミックレンジ、誤差±2-5%）'
+        };
+    }
+    
+    const t20Result = tryMeasureRT(edcDB, sampleRate, -5, -25);
+    if (t20Result.success) {
+        return {
+            value: t20Result.time * 3.0,
+            method: 'T20',
+            quality: 'acceptable',
+            description: 'T20測定（20dBダイナミックレンジ、誤差±5-10%）'
+        };
+    }
+    
+    return {
+        value: null,
+        method: 'failed',
+        quality: 'poor',
+        description: '測定失敗（ダイナミックレンジ不足）'
+    };
+}
+
+function calculateSNR(signal, noiseFloor) {
+    let signalPower = 0;
+    for (let i = 0; i < signal.length; i++) {
+        signalPower += signal[i] * signal[i];
+    }
+    signalPower /= signal.length;
+    
+    const snr = 10 * Math.log10(signalPower / (noiseFloor * noiseFloor));
+    return snr;
+}
+
+self.onmessage = function(e) {
+    const { type, data } = e.data;
+    
+    if (type === 'analyze') {
+        const { recordedData, sampleRate, noiseFloor } = data;
+        
+        try {
+            const freqBands = [125, 250, 500, 1000, 2000, 4000];
+            const rt60Results = [];
+            const snrResults = [];
+            const methodsUsed = [];
+            const qualityLevels = [];
+            
+            for (let i = 0; i < freqBands.length; i++) {
+                const centerFreq = freqBands[i];
+                
+                const filtered = applyBandpassFilter(recordedData, sampleRate, centerFreq, centerFreq);
+                
+                const edc = schroederIntegration(filtered);
+                
+                const rtResult = calculateRT(edc, sampleRate);
+                
+                const snr = calculateSNR(filtered, noiseFloor);
+                
+                rt60Results.push(rtResult.value);
+                snrResults.push(snr);
+                methodsUsed.push(rtResult.method);
+                qualityLevels.push(rtResult.quality);
+            }
+            
+            let overallQuality = 'good';
+            let qualityReason = '';
+            
+            const minSNR = Math.min(...snrResults.filter(s => !isNaN(s)));
+            if (minSNR < 15) {
+                overallQuality = 'poor';
+                qualityReason = \`S/N比不足（\${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。\`;
+            }
+            
+            const successCount = rt60Results.filter(rt => rt !== null).length;
+            if (successCount < 4) {
+                overallQuality = 'poor';
+                qualityReason = \`測定成功率が低すぎます（\${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。\`;
+            }
+            
+            const validRT60 = rt60Results.filter(rt => rt !== null && rt >= 0.05 && rt <= 5.0);
+            if (validRT60.length < successCount) {
+                overallQuality = 'poor';
+                qualityReason = 'RT60値が物理的に妥当な範囲外です。測定環境を確認してください。';
+            }
+            
+            const methodCounts = {
+                T60: methodsUsed.filter(m => m === 'T60').length,
+                T30: methodsUsed.filter(m => m === 'T30').length,
+                T20: methodsUsed.filter(m => m === 'T20').length,
+                failed: methodsUsed.filter(m => m === 'failed').length
+            };
+            
+            let primaryMethod = 'T30';
+            if (methodCounts.T60 >= 4) primaryMethod = 'T60';
+            else if (methodCounts.T20 >= 4) primaryMethod = 'T20';
+            
+            self.postMessage({
+                type: 'result',
+                rt60: rt60Results,
+                snr: snrResults,
+                quality: overallQuality,
+                qualityReason: qualityReason,
+                methods: methodsUsed,
+                primaryMethod: primaryMethod,
+                methodCounts: methodCounts
+            });
+            
+        } catch (error) {
+            self.postMessage({
+                type: 'error',
+                message: '解析中にエラーが発生しました: ' + error.message
+            });
+        }
+    }
+};
+`;
+
+let measurementWorker = null;
+
+function initWorker() {
+    const blob = new Blob([workerCode], { type: 'text/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    measurementWorker = new Worker(workerUrl);
+    
+    measurementWorker.onmessage = function(e) {
+        const { type, rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts, message } = e.data;
+        
+        if (type === 'result') {
+            handleMeasurementResult(rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts);
+        } else if (type === 'error') {
+            handleMeasurementError(message);
+        }
+    };
+}
+
+function handleMeasurementResult(rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts) {
+    const statusEl = document.getElementById('measureStatus');
+    const warningEl = document.getElementById('remeasureWarning');
+    const warningReasonEl = document.getElementById('warningReason');
+    const manualInputEl = document.getElementById('manualInputPanel');
+    const recordingAlertEl = document.getElementById('recordingAlert');
+    const methodBadge = document.getElementById('methodBadge');
+    
+    recordingAlertEl.classList.remove('active');
+    
+    if (quality === 'good') {
+        measurementData = rt60;
+        
+        document.getElementById('m125').value = rt60[0] ? rt60[0].toFixed(2) : '0.00';
+        document.getElementById('m250').value = rt60[1] ? rt60[1].toFixed(2) : '0.00';
+        document.getElementById('m500').value = rt60[2] ? rt60[2].toFixed(2) : '0.00';
+        document.getElementById('m1k').value = rt60[3] ? rt60[3].toFixed(2) : '0.00';
+        document.getElementById('m2k').value = rt60[4] ? rt60[4].toFixed(2) : '0.00';
+        document.getElementById('m4k').value = rt60[5] ? rt60[5].toFixed(2) : '0.00';
+        
+        let methodInfo = '';
+        if (primaryMethod === 'T60') {
+            methodInfo = '✅ 測定完了 (T60直接測定) - 最高精度';
+        } else if (primaryMethod === 'T30') {
+            methodInfo = '✅ 測定完了 (T30測定) - ISO 3382-2準拠、誤差±2-5%';
+        } else if (primaryMethod === 'T20') {
+            methodInfo = '✅ 測定完了 (T20測定) - 小空間向け、誤差±5-10%';
+        }
+        
+        statusEl.textContent = methodInfo;
+        statusEl.className = 'status-msg success';
+        
+        methodBadge.textContent = `EYRING (${primaryMethod})`;
+        methodBadge.style.background = primaryMethod === 'T60' ? 'var(--success)' : 
+                                        primaryMethod === 'T30' ? 'var(--warning)' : 
+                                        'var(--caution)';
+        
+        const avgSNR = snr.reduce((a, b) => a + b, 0) / snr.length;
+        const snrIndicatorEl = document.getElementById('snrIndicator');
+        const snrValueEl = document.getElementById('snrValue');
+        snrIndicatorEl.style.display = 'block';
+        snrValueEl.style.width = Math.min(avgSNR * 2, 100) + '%';
+        snrValueEl.textContent = avgSNR.toFixed(1) + ' dB';
+        
+        warningEl.style.display = 'none';
+        
+        manualInputEl.style.display = 'block';
+        
+        calculate();
+        
+    } else {
+        measurementData = null;
+        
+        statusEl.textContent = '⚠️ 測定失敗 - 再測定が必要です';
+        statusEl.className = 'status-msg error';
+        
+        warningEl.style.display = 'block';
+        warningReasonEl.textContent = qualityReason;
+        
+        manualInputEl.style.display = 'block';
+    }
+    
+    document.getElementById('startMeasBtn').disabled = false;
+}
+
+function handleMeasurementError(message) {
+    const statusEl = document.getElementById('measureStatus');
+    const recordingAlertEl = document.getElementById('recordingAlert');
+    
+    recordingAlertEl.classList.remove('active');
+    
+    statusEl.textContent = '❌ エラー: ' + message;
+    statusEl.className = 'status-msg error';
+    
+    document.getElementById('startMeasBtn').disabled = false;
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    initWorker();
+});
+</script>
+
+<script>
+const MEASUREMENT_CONFIG = {
+    sampleRate: 48000,
+    calibrationDuration: 2.5,
+    sweepDuration: 5.0,
+    silenceDuration: 5.0,
+    totalDuration: 10.0,
+    startFreq: 20,
+    endFreq: 20000,
+    beepFreq: 1000,
+    beepDuration: 0.2,
+    waitAfterBeep: 1.0,
+    minSNR: 20,
+    sweepGain: 0.5
+};
+
+let audioContext = null;
+let mediaStream = null;
+let recordedBuffer = null;
+let noiseFloorLevel = 0;
+
+async function runMeasurementSequence() {
+    const statusEl = document.getElementById('measureStatus');
+    const startBtn = document.getElementById('startMeasBtn');
+    const recordingAlert = document.getElementById('recordingAlert');
+    const warningEl = document.getElementById('remeasureWarning');
+    
+    startBtn.disabled = true;
+    warningEl.style.display = 'none';
+    
+    try {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: MEASUREMENT_CONFIG.sampleRate
+            });
+        }
+        
+        statusEl.textContent = '🎤 キャリブレーション中... 静かにしてください';
+        statusEl.className = 'status-msg calibrating';
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        noiseFloorLevel = await measureNoiseFloor();
+        
+        if (noiseFloorLevel > 0.05) {
+            throw new Error('環境ノイズが大きすぎます。静かな環境で測定してください。');
+        }
+        
+        statusEl.textContent = '⏰ まもなく測定を開始します...';
+        statusEl.className = 'status-msg calibrating';
+        
+        await playBeep();
+        await new Promise(resolve => setTimeout(resolve, MEASUREMENT_CONFIG.waitAfterBeep * 1000));
+        
+        statusEl.textContent = '📢 測定中... 静かにしてください';
+        statusEl.className = 'status-msg analyzing';
+        recordingAlert.classList.add('active');
+        
+        recordedBuffer = await recordSweep();
+        
+        recordingAlert.classList.remove('active');
+        
+        statusEl.textContent = '🔍 解析中... しばらくお待ちください';
+        statusEl.className = 'status-msg analyzing';
+        
+        const channelData = recordedBuffer.getChannelData(0);
+        
+        measurementWorker.postMessage({
+            type: 'analyze',
+            data: {
+                recordedData: Array.from(channelData),
+                sampleRate: MEASUREMENT_CONFIG.sampleRate,
+                noiseFloor: noiseFloorLevel
+            }
+        });
+        
+    } catch (error) {
+        statusEl.textContent = '❌ 測定失敗: ' + error.message;
+        statusEl.className = 'status-msg error';
+        recordingAlert.classList.remove('active');
+        startBtn.disabled = false;
+    }
+}
+
+async function measureNoiseFloor() {
+    try {
+        const micDeviceId = document.getElementById('micSelect').value;
+        
+        if (!micDeviceId) {
+            throw new Error('マイクデバイスが選択されていません');
+        }
+        
+        const constraints = {
+            audio: {
+                deviceId: micDeviceId ? { exact: micDeviceId } : undefined,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            }
+        };
+        
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        
+        const dataArray = new Float32Array(analyser.frequencyBinCount);
+        const samples = [];
+        
+        const startTime = audioContext.currentTime;
+        const duration = MEASUREMENT_CONFIG.calibrationDuration;
+        
+        return new Promise((resolve) => {
+            const checkNoise = () => {
+                analyser.getFloatTimeDomainData(dataArray);
+                
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i] * dataArray[i];
+                }
+                const rms = Math.sqrt(sum / dataArray.length);
+                samples.push(rms);
+                
+                if (audioContext.currentTime - startTime < duration) {
+                    requestAnimationFrame(checkNoise);
+                } else {
+                    const avgNoise = samples.reduce((a, b) => a + b, 0) / samples.length;
+                    resolve(avgNoise);
+                }
+            };
+            checkNoise();
+        });
+        
+    } catch (error) {
+        throw new Error('マイク入力の取得に失敗しました: ' + error.message);
+    }
+}
+
+async function playBeep() {
+    return new Promise((resolve) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = MEASUREMENT_CONFIG.beepFreq;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + MEASUREMENT_CONFIG.beepDuration);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + MEASUREMENT_CONFIG.beepDuration);
+        
+        oscillator.onended = () => resolve();
+    });
+}
+
+async function recordSweep() {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const sweepBuffer = generateLogSweep();
+            
+            const totalSamples = MEASUREMENT_CONFIG.totalDuration * MEASUREMENT_CONFIG.sampleRate;
+            const recordBuffer = audioContext.createBuffer(1, totalSamples, MEASUREMENT_CONFIG.sampleRate);
+            
+            const bufferSource = audioContext.createBufferSource();
+            const mediaStreamSource = audioContext.createMediaStreamSource(mediaStream);
+            const processor = audioContext.createScriptProcessor(4096, 1, 1);
+            
+            bufferSource.buffer = sweepBuffer;
+            bufferSource.connect(audioContext.destination);
+            
+            let recordIndex = 0;
+            const channelData = recordBuffer.getChannelData(0);
+            
+            processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                
+                for (let i = 0; i < inputData.length; i++) {
+                    if (recordIndex < totalSamples) {
+                        channelData[recordIndex++] = inputData[i];
+                    }
+                }
+                
+                if (recordIndex >= totalSamples) {
+                    processor.disconnect();
+                    mediaStreamSource.disconnect();
+                    
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    
+                    resolve(recordBuffer);
+                }
+            };
+            
+            mediaStreamSource.connect(processor);
+            processor.connect(audioContext.destination);
+            
+            bufferSource.start(audioContext.currentTime);
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+function generateLogSweep() {
+    const duration = MEASUREMENT_CONFIG.sweepDuration;
+    const sampleRate = MEASUREMENT_CONFIG.sampleRate;
+    const length = duration * sampleRate;
+    
+    const buffer = audioContext.createBuffer(1, length, sampleRate);
+    const channelData = buffer.getChannelData(0);
+    
+    const f1 = MEASUREMENT_CONFIG.startFreq;
+    const f2 = MEASUREMENT_CONFIG.endFreq;
+    const k = Math.exp(Math.log(f2 / f1) / duration);
+    
+    for (let i = 0; i < length; i++) {
+        const t = i / sampleRate;
+        const freq = f1 * Math.pow(k, t);
+        const phase = 2 * Math.PI * f1 * (Math.pow(k, t) - 1) / Math.log(k);
+        
+        channelData[i] = MEASUREMENT_CONFIG.sweepGain * Math.sin(phase);
+        
+        if (i < sampleRate * 0.1) {
+            channelData[i] *= i / (sampleRate * 0.1);
+        } else if (i > length - sampleRate * 0.1) {
+            channelData[i] *= (length - i) / (sampleRate * 0.1);
+        }
+    }
+    
+    return buffer;
+}
+</script>
+
+<script>
+function sendToGoogleForm() {
+    const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSedr8Z99dcRJuV3qYRmYddUUzYGrnvrz2aU3zbFvrwVpbTreQ/viewform";
+    
+    const appSelect = document.getElementById('appTarget');
+    const app = appSelect.options[appSelect.selectedIndex].text;
+    
+    const w = document.getElementById('w').value;
+    const d = document.getElementById('d').value;
+    const h = document.getElementById('h').value;
+    const size = `${w}m × ${d}m × ${h}m`;
+    
+    const wallSelect = document.getElementById('baseWall');
+    const ceilingSelect = document.getElementById('baseCeiling');
+    const floorSelect = document.getElementById('baseFloor');
+    
+    const wallMat = wallSelect.options[wallSelect.selectedIndex].text;
+    const ceilingMat = ceilingSelect.options[ceilingSelect.selectedIndex].text;
+    const floorMat = floorSelect.options[floorSelect.selectedIndex].text;
+    
+    const base = `壁: ${wallMat}, 天井: ${ceilingMat}, 床: ${floorMat}`;
+    
+    let productList = "";
+    for (let i = 0; i < 3; i++) {
+        const spec = selectedSpecs[i];
+        const qty = parseInt(document.getElementById(`qty_${i}`).value) || 0;
+        
+        if (spec.category && spec.model && spec.thick && spec.size && qty > 0) {
+            const product = SOUNDBOX_DB.products[spec.category].models[spec.model];
+            productList += `・${product.n} / ${spec.thick}mm / ${spec.size} × ${qty}枚\n`;
+        }
+    }
+    
+    if (!productList) {
+        productList = "選択なし";
+    }
+    
+    const rtText = document.getElementById('postRT_Avg').textContent;
+    
+    const params = new URLSearchParams();
+    params.append("usp", "pp_url");
+    params.append("entry.1871431492", app);
+    params.append("entry.1902994140", size);
+    params.append("entry.779901469", base);
+    params.append("entry.364281805", productList);
+    params.append("entry.1449240528", rtText);
+    
+    const finalUrl = `${formUrl}?${params.toString()}`;
+    window.open(finalUrl, '_blank');
+}
+
+function updateChart(rt_before, rt_after, targetRT) {
+    const ctx = document.getElementById('rtChart').getContext('2d');
+    
+    if (chart) {
+        chart.destroy();
+    }
+    
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: FREQS.map(f => f + 'Hz'),
+            datasets: [
+                {
+                    label: '現状 (Before)',
+                    data: rt_before,
+                    borderColor: '#8b949e',
+                    backgroundColor: 'rgba(139, 148, 158, 0.05)',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#8b949e'
+                },
+                {
+                    label: '対策後 (After)',
+                    data: rt_after,
+                    borderColor: '#39d353',
+                    backgroundColor: 'rgba(57, 211, 83, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#39d353',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                },
+                {
+                    label: '目標値',
+                    data: FREQS.map(() => targetRT),
+                    borderColor: '#388bfd',
+                    backgroundColor: 'rgba(56, 139, 253, 0.05)',
+                    borderWidth: 2,
+                    borderDash: [10, 5],
+                    fill: false,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                y: {
+                    min: 0,
+                    max: 2.5,
+                    grid: {
+                        color: '#30363d',
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        color: '#8b949e',
+                        font: {
+                            size: 11
+                        },
+                        callback: function(value) {
+                            return value.toFixed(1) + 's';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'RT60 (sec)',
+                        color: '#8b949e',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: '#30363d',
+                        lineWidth: 1
+                    },
+                    ticks: {
+                        color: '#8b949e',
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        color: '#e6edf3',
+                        font: {
+                            size: 11
+                        },
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(22, 27, 34, 0.95)',
+                    titleColor: '#e6edf3',
+                    bodyColor: '#e6edf3',
+                    borderColor: '#30363d',
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: true,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 's';
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+
+</body>
+</html>
