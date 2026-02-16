@@ -1433,15 +1433,15 @@ function assessRecordingQuality(recordedData, sampleRate, noiseFloor) {
         
         // 具体的な改善提案
         if (quality.snr < 20) {
-            quality.issues.push(`S/N比不足: ${quality.snr.toFixed(1)}dB（推奨: 20dB以上）環境ノイズを減らすか、スピーカー音量を上げてください\`);
+            quality.issues.push(`S/N比不足: ${quality.snr.toFixed(1)}dB（推奨: 20dB以上）環境ノイズを減らすか、スピーカー音量を上げてください`);
         }
         
         if (quality.dynamicRange < 25) {
-            quality.issues.push(`ダイナミックレンジ不足: ${quality.dynamicRange.toFixed(1)}dB（推奨: 25dB以上）マイクとスピーカーの距離を調整してください\`);
+            quality.issues.push(`ダイナミックレンジ不足: ${quality.dynamicRange.toFixed(1)}dB（推奨: 25dB以上）マイクとスピーカーの距離を調整してください`);
         }
         
         if (quality.clippingRatio > 1.0) {
-            quality.issues.push(`クリッピング率: ${quality.clippingRatio.toFixed(2)}%（許容: 1%未満）スピーカー音量を下げてください\`);
+            quality.issues.push(`クリッピング率: ${quality.clippingRatio.toFixed(2)}%（許容: 1%未満）スピーカー音量を下げてください`);
         }
     }
     
