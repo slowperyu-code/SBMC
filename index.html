@@ -1299,9 +1299,29 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 const workerCode = `
+// ========================================
+// デバッグ用ログ関数
+// ========================================
+function log(message, data) {
+    console.log('[Worker] ' + message, data || '');
+    self.postMessage({
+        type: 'debug',
+        message: message,
+        data: data
+    });
+}
+
+// ========================================
+// FFT実装
+// ========================================
 function fft(real, imag) {
+    log('FFT開始', { length: real.length });
+    
     const n = real.length;
-    if (n <= 1) return;
+    if (n <= 1) {
+        log('FFT完了（n<=1）');
+        return;
+    }
     
     let j = 0;
     for (let i = 0; i < n - 1; i++) {
@@ -1316,6 +1336,8 @@ function fft(real, imag) {
         }
         j += k;
     }
+    
+    log('FFT: ビット反転完了');
     
     for (let len = 2; len <= n; len <<= 1) {
         const angle = -2 * Math.PI / len;
@@ -1343,18 +1365,28 @@ function fft(real, imag) {
             }
         }
     }
+    
+    log('FFT完了');
 }
 
+// ========================================
+// バンドパスフィルタ
+// ========================================
 function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
+    log('バンドパスフィルタ開始', { freq: centerFreq, dataLength: data.length });
+    
     const lowFreq = centerFreq / Math.sqrt(2);
     const highFreq = centerFreq * Math.sqrt(2);
     
     const n = data.length;
+    log('配列確保中...', { size: n });
     const real = new Float32Array(data);
     const imag = new Float32Array(n);
     
+    log('順方向FFT開始');
     fft(real, imag);
     
+    log('周波数領域フィルタ適用中');
     for (let i = 0; i < n; i++) {
         const freq = i * sampleRate / n;
         if (freq < lowFreq || freq > highFreq) {
@@ -1363,6 +1395,7 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
         }
     }
     
+    log('逆方向FFT開始');
     for (let i = 0; i < n; i++) {
         imag[i] = -imag[i];
     }
@@ -1372,10 +1405,16 @@ function applyBandpassFilter(data, sampleRate, centerFreq, bandwidth) {
         imag[i] = -imag[i] / n;
     }
     
+    log('バンドパスフィルタ完了');
     return real;
 }
 
+// ========================================
+// シュレーダー積分
+// ========================================
 function schroederIntegration(impulseResponse) {
+    log('シュレーダー積分開始', { length: impulseResponse.length });
+    
     const n = impulseResponse.length;
     const edc = new Float32Array(n);
     
@@ -1392,9 +1431,13 @@ function schroederIntegration(impulseResponse) {
         }
     }
     
+    log('シュレーダー積分完了', { maxEnergy: maxEnergy });
     return edc;
 }
 
+// ========================================
+// RT測定試行
+// ========================================
 function tryMeasureRT(edcDB, sampleRate, startDB, endDB) {
     const n = edcDB.length;
     
@@ -1431,6 +1474,9 @@ function tryMeasureRT(edcDB, sampleRate, startDB, endDB) {
     return { success: true, time: decayTime };
 }
 
+// ========================================
+// RT計算
+// ========================================
 function calculateRT(edc, sampleRate) {
     const n = edc.length;
     
@@ -1477,6 +1523,9 @@ function calculateRT(edc, sampleRate) {
     };
 }
 
+// ========================================
+// SNR計算
+// ========================================
 function calculateSNR(signal, noiseFloor) {
     let signalPower = 0;
     for (let i = 0; i < signal.length; i++) {
@@ -1488,20 +1537,40 @@ function calculateSNR(signal, noiseFloor) {
     return snr;
 }
 
+// ========================================
+// メインメッセージハンドラ
+// ========================================
 self.onmessage = function(e) {
+    log('=== Worker開始 ===');
+    
     const { type, data } = e.data;
     
     if (type === 'analyze') {
+        log('解析タイプ確認: analyze');
         const { recordedData, sampleRate, noiseFloor } = data;
         
+        log('受信データ確認', {
+            dataLength: recordedData.length,
+            sampleRate: sampleRate,
+            noiseFloor: noiseFloor,
+            duration: (recordedData.length / sampleRate).toFixed(2) + '秒'
+        });
+        
         try {
+            log('解析処理開始');
+            const startTime = Date.now();
+            
             const freqBands = [125, 250, 500, 1000, 2000, 4000];
             const rt60Results = [];
             const snrResults = [];
             const methodsUsed = [];
             const qualityLevels = [];
             
+            log('周波数帯域処理開始', { bands: freqBands.length });
+            
             for (let i = 0; i < freqBands.length; i++) {
+                log(\`===== 帯域 \${i+1}/6 処理開始 =====\`, { freq: freqBands[i] + 'Hz' });
+                
                 const centerFreq = freqBands[i];
                 
                 const filtered = applyBandpassFilter(recordedData, sampleRate, centerFreq, centerFreq);
@@ -1509,25 +1578,40 @@ self.onmessage = function(e) {
                 const edc = schroederIntegration(filtered);
                 
                 const rtResult = calculateRT(edc, sampleRate);
+                log(\`RT計算完了 \${i+1}/6\`, { 
+                    method: rtResult.method, 
+                    value: rtResult.value,
+                    quality: rtResult.quality
+                });
                 
                 const snr = calculateSNR(filtered, noiseFloor);
+                log(\`SNR計算完了 \${i+1}/6\`, { snr: snr.toFixed(1) + 'dB' });
                 
                 rt60Results.push(rtResult.value);
                 snrResults.push(snr);
                 methodsUsed.push(rtResult.method);
                 qualityLevels.push(rtResult.quality);
+                
+                log(\`===== 帯域 \${i+1}/6 処理完了 =====\`);
             }
+            
+            log('全帯域処理完了');
+            log('品質評価開始');
             
             let overallQuality = 'good';
             let qualityReason = '';
             
             const minSNR = Math.min(...snrResults.filter(s => !isNaN(s)));
+            log('最小SNR', { value: minSNR.toFixed(1) + 'dB' });
+            
             if (minSNR < 15) {
                 overallQuality = 'poor';
                 qualityReason = \`S/N比不足（\${minSNR.toFixed(1)}dB < 15dB）。環境ノイズが大きすぎます。静かな環境で再測定してください。\`;
             }
             
             const successCount = rt60Results.filter(rt => rt !== null).length;
+            log('測定成功数', { count: successCount + '/6' });
+            
             if (successCount < 4) {
                 overallQuality = 'poor';
                 qualityReason = \`測定成功率が低すぎます（\${successCount}/6帯域）。スイープ音量を上げるか、より静かな環境で再測定してください。\`;
@@ -1546,9 +1630,14 @@ self.onmessage = function(e) {
                 failed: methodsUsed.filter(m => m === 'failed').length
             };
             
+            log('測定手法分布', methodCounts);
+            
             let primaryMethod = 'T30';
             if (methodCounts.T60 >= 4) primaryMethod = 'T60';
             else if (methodCounts.T20 >= 4) primaryMethod = 'T20';
+            
+            log('品質評価完了', { quality: overallQuality, primaryMethod: primaryMethod });
+            log('結果送信中...');
             
             self.postMessage({
                 type: 'result',
@@ -1561,7 +1650,15 @@ self.onmessage = function(e) {
                 methodCounts: methodCounts
             });
             
+            const processingTime = (Date.now() - startTime) / 1000;
+            log('=== Worker完了 ===', { processingTime: processingTime.toFixed(2) + '秒' });
+            
         } catch (error) {
+            log('❌ エラー発生', { 
+                message: error.message,
+                stack: error.stack
+            });
+            
             self.postMessage({
                 type: 'error',
                 message: '解析中にエラーが発生しました: ' + error.message
