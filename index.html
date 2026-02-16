@@ -1897,6 +1897,109 @@ function initWorker() {
 }
 
 // ========================================
+// 測定結果処理関数
+// ========================================
+function handleMeasurementResult(rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts) {
+    console.log('測定結果を処理:', { rt60, snr, quality, qualityReason, methods, primaryMethod, methodCounts });
+    
+    const statusEl = document.getElementById('measureStatus');
+    const startBtn = document.getElementById('startMeasBtn');
+    const warningEl = document.getElementById('remeasureWarning');
+    const warningReasonEl = document.getElementById('warningReason');
+    const manualInputPanel = document.getElementById('manualInputPanel');
+    
+    // 測定完了ステータス
+    statusEl.textContent = '✅ 測定完了';
+    statusEl.className = 'status-msg ready';
+    startBtn.disabled = false;
+    
+    // 品質チェック
+    if (quality === 'poor' || quality === 'insufficient') {
+        warningEl.style.display = 'block';
+        warningReasonEl.textContent = qualityReason || 'データ品質が不十分です。';
+        
+        // 品質が悪い場合は手動入力パネルを表示
+        if (manualInputPanel) {
+            manualInputPanel.style.display = 'block';
+        }
+    } else {
+        warningEl.style.display = 'none';
+        
+        // 測定値を手動入力フィールドに設定
+        if (rt60 && typeof rt60 === 'object') {
+            const freqMap = {
+                '125': 'm125',
+                '250': 'm250',
+                '500': 'm500',
+                '1000': 'm1k',
+                '2000': 'm2k',
+                '4000': 'm4k'
+            };
+            
+            for (const [freq, value] of Object.entries(rt60)) {
+                const inputId = freqMap[freq];
+                if (inputId && value !== null && !isNaN(value)) {
+                    const inputEl = document.getElementById(inputId);
+                    if (inputEl) {
+                        inputEl.value = value.toFixed(2);
+                    }
+                }
+            }
+            
+            // 計算を実行
+            if (typeof calculate === 'function') {
+                calculate();
+            }
+        }
+    }
+    
+    // SNR表示
+    if (snr !== null && !isNaN(snr)) {
+        const snrIndicator = document.getElementById('snrIndicator');
+        const snrValue = document.getElementById('snrValue');
+        
+        if (snrIndicator && snrValue) {
+            snrIndicator.style.display = 'block';
+            const snrPercent = Math.min(100, Math.max(0, snr));
+            snrValue.style.width = snrPercent + '%';
+            
+            // SNRに応じて色を変更
+            if (snr >= 20) {
+                snrValue.style.background = 'var(--success)';
+            } else if (snr >= 10) {
+                snrValue.style.background = 'var(--warning)';
+            } else {
+                snrValue.style.background = 'var(--danger)';
+            }
+        }
+    }
+    
+    console.log('測定結果の処理完了');
+}
+
+function handleMeasurementError(message) {
+    console.error('測定エラー:', message);
+    
+    const statusEl = document.getElementById('measureStatus');
+    const startBtn = document.getElementById('startMeasBtn');
+    const recordingAlert = document.getElementById('recordingAlert');
+    
+    statusEl.textContent = '❌ 測定エラー: ' + message;
+    statusEl.className = 'status-msg error';
+    
+    if (recordingAlert) {
+        recordingAlert.classList.remove('active');
+    }
+    
+    startBtn.disabled = false;
+    
+    // メディアストリームを停止
+    if (typeof mediaStream !== 'undefined' && mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// ========================================
 // DOMContentLoaded でWorker初期化（追加）
 // ========================================
 window.addEventListener('DOMContentLoaded', function() {
