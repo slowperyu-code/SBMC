@@ -690,7 +690,7 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
     document.getElementById('targetLabel').textContent = `目標: ${targetRT}s`;
     document.getElementById('achievementRate').textContent = achievementRate.toFixed(0) + '%';
     document.getElementById('totalPanelArea').textContent = `${totalPanelM2.toFixed(1)} / ${usableSurface.toFixed(1)}㎡`;
-    document.getElementById('diffusionBalance').textContent = `拡散寄与度: ${diffusionIndicator}`;
+    document.getElementById('diffusionBalance').style.display = 'none'; // 拡散寄与度は未実装のため非表示
     const cardHealth = document.getElementById('cardHealth');
     const healthStatus = document.getElementById('healthStatus');
     const adviceHeader = document.getElementById('adviceHeader');
@@ -1366,7 +1366,14 @@ async function playAndRecord(ctx, stream, sweepData, centerHz) {
     };
 
     source.connect(processor);
-    processor.connect(ctx.destination); // 必要（Chromeの仕様）
+    
+    // ScriptProcessorは接続が必要（Chrome仕様）だが、
+    // destinationに直接つなぐと録音音がスピーカーに戻り2重に聞こえる
+    // → ゲイン0のダミーノードを経由
+    const dummyGain = ctx.createGain();
+    dummyGain.gain.value = 0;
+    processor.connect(dummyGain);
+    dummyGain.connect(ctx.destination);
 
     // Sweep再生
     const sweepBuffer = ctx.createBuffer(1, sweepData.sweep.length, fs);
