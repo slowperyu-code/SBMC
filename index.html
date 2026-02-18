@@ -755,13 +755,42 @@ self.onmessage = function(e) {
         return;
     }
     if (msg.type === 'CALIBRATION') {
-        _noiseFloor = msg.noiseFloor;
+        // 録音データからバンド別ノイズフロアを計算
+        const noiseRec = new Float32Array(msg.noiseRecording);
+        _noiseFloor = calculateNoiseFloorFromRecording(noiseRec);
+        self.postMessage({ type: 'calibrationDone' }); // 完了通知
         return;
     }
     if (msg.type === 'ANALYZE_BAND') {
         analyzeBand(msg);
     }
 };
+
+/* ─────────────────────────────────────────────
+   ノイズ録音から18バンド別ノイズフロアを計算
+───────────────────────────────────────────── */
+function calculateNoiseFloorFromRecording(signal) {
+    const bands = _cfg.bands;
+    const fs    = _fs;
+    const noiseFloor = new Array(bands.length);
+
+    for (let bi = 0; bi < bands.length; bi++) {
+        const fc = bands[bi];
+        
+        // 各バンドでBPF適用
+        const sections = designButterworthBPF(fc, fs, 6, 0.05);
+        const filtered = applyBiquadCascade(signal, sections);
+        
+        // RMS計算
+        let sumSq = 0;
+        for (let i = 0; i < filtered.length; i++) {
+            sumSq += filtered[i] * filtered[i];
+        }
+        noiseFloor[bi] = Math.sqrt(sumSq / filtered.length);
+    }
+    
+    return noiseFloor;
+}
 
 /* ─────────────────────────────────────────────
    Cooley-Tukey FFT（基数2・インプレース）
@@ -1309,6 +1338,7 @@ function updateProgress(bandIndex, bandHz, status) {
 
 // ─────────────────────────────────────────────────────
 // キャリブレーション: ノイズフロア測定（2秒無音録音）
+// 録音データをそのままWorkerに送り、Worker側でバンド別解析
 // ─────────────────────────────────────────────────────
 async function measureNoiseFloor(ctx, stream) {
     const fs = ctx.sampleRate;
@@ -1349,54 +1379,8 @@ async function measureNoiseFloor(ctx, stream) {
     processor.disconnect();
     dummyGain.disconnect();
 
-    // FFTで帯域別ノイズレベルを計算
-    return calculateBandNoiseFloor(recorded, fs);
-}
-
-// ─────────────────────────────────────────────────────
-// 帯域別ノイズフロア計算（18バンド）
-// ─────────────────────────────────────────────────────
-function calculateBandNoiseFloor(signal, fs) {
-    const bands = MEASUREMENT_CONFIG.bands; // 18バンド
-    const noiseFloor = new Array(18);
-
-    // FFT用にゼロパディング
-    const N = 1 << Math.ceil(Math.log2(signal.length));
-    const re = new Float64Array(N);
-    const im = new Float64Array(N);
-    for (let i = 0; i < signal.length; i++) re[i] = signal[i];
-
-    // 簡易FFT（Workerと同じアルゴリズムは使えないのでDFTで代用）
-    // 実用上は各バンド中心周波数±5%の範囲のパワーを計算
-    for (let bi = 0; bi < bands.length; bi++) {
-        const fc = bands[bi];
-        const fLow  = fc / Math.sqrt(2) * 1.05;
-        const fHigh = fc * Math.sqrt(2) * 0.95;
-        
-        let power = 0;
-        let count = 0;
-        
-        // 該当周波数帯域のビンのパワーを積算
-        for (let k = 0; k < N / 2; k++) {
-            const freq = k * fs / N;
-            if (freq >= fLow && freq <= fHigh) {
-                // DFT（計算量多いが2秒分だけなので許容）
-                let rePart = 0, imPart = 0;
-                for (let n = 0; n < signal.length; n++) {
-                    const angle = -2 * Math.PI * k * n / N;
-                    rePart += signal[n] * Math.cos(angle);
-                    imPart += signal[n] * Math.sin(angle);
-                }
-                power += (rePart * rePart + imPart * imPart);
-                count++;
-            }
-        }
-        
-        // 平均パワー → RMS
-        noiseFloor[bi] = count > 0 ? Math.sqrt(power / (count * signal.length)) : 1e-10;
-    }
-
-    return noiseFloor;
+    // Raw録音データを返す（Workerで帯域別解析）
+    return recorded;
 }
 
 // ─────────────────────────────────────────────────────
@@ -1610,22 +1594,19 @@ async function runMeasurementSequence() {
     statusEl.textContent = '📊 環境ノイズを測定中...（2秒）';
     statusEl.className = 'status-msg calibrating';
     
-    let noiseFloor;
+    let noiseRecording;
     try {
-        noiseFloor = await measureNoiseFloor(audioContext, mediaStream);
+        noiseRecording = await measureNoiseFloor(audioContext, mediaStream);
         
-        // Workerにノイズフロアデータを送信
+        // Worker側でバンド別解析を実行（非同期・ブロックしない）
         measurementWorker.postMessage({
             type: 'CALIBRATION',
-            noiseFloor: noiseFloor
-        });
+            noiseRecording: noiseRecording.buffer
+        }, [noiseRecording.buffer]); // Transferable
         
-        console.info('ノイズフロア測定完了:', noiseFloor.map((v, i) => 
-            `${MEASUREMENT_CONFIG.bands[i]}Hz: ${(20 * Math.log10(v)).toFixed(1)}dB`
-        ).join(', '));
+        console.info('ノイズフロア録音完了 → Workerで解析中');
     } catch (err) {
-        console.warn('ノイズフロア測定失敗（デフォルト値使用）:', err.message);
-        noiseFloor = new Array(18).fill(1e-6); // フォールバック
+        console.warn('ノイズフロア測定失敗:', err.message);
     }
 
     // ── ステージ2: 18バンド逐次測定 ──
