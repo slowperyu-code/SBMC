@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.2): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.3): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -71,7 +71,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.2 新規追加）
+           測定進捗バー（Rev 18.3 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -158,7 +158,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.2): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.3): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -193,7 +193,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.2 新規追加）
+             測定進捗バー（Rev 18.3 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -204,7 +204,7 @@
             <div class="measure-progress-bar-track">
                 <div id="progressBar" class="measure-progress-bar-fill"></div>
             </div>
-            <div id="progressTime" class="measure-progress-time">残り約 74 秒</div>
+            <div id="progressTime" class="measure-progress-time">残り約 90 秒</div>
         </div>
         <!-- ======================================== -->
         
@@ -736,7 +736,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.2 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.3 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -847,6 +847,59 @@ function ifft(re, im) {
         re[i] /=  N;
         im[i]  = -im[i] / N;
     }
+}
+
+/* ─────────────────────────────────────────────
+   相互相関によるSweep開始位置検出
+   Bluetooth遅延・ジッターに対応
+   2段階スキャン: 粗いスキャン → 細かい調整
+───────────────────────────────────────────── */
+function findSweepStart(recorded, sweep) {
+    const fs = _fs;
+    
+    // スキャン範囲: 最初の2.5秒（Bluetooth遅延を想定）
+    const searchSamples = Math.min(
+        Math.floor(2.5 * fs),
+        recorded.length - sweep.length
+    );
+    
+    if (searchSamples <= 0) return 0;
+    
+    // チェック長: Sweepの最初の0.1秒（高速化）
+    const checkLength = Math.min(Math.floor(0.1 * fs), sweep.length);
+    
+    // ① 粗いスキャン（100サンプル刻み）
+    let maxCorr = -Infinity;
+    let bestOffset = 0;
+    
+    for (let offset = 0; offset < searchSamples; offset += 100) {
+        let corr = 0;
+        for (let i = 0; i < checkLength; i++) {
+            corr += recorded[offset + i] * sweep[i];
+        }
+        if (corr > maxCorr) {
+            maxCorr = corr;
+            bestOffset = offset;
+        }
+    }
+    
+    // ② 細かい調整（±100サンプル範囲で1サンプル刻み）
+    const fineStart = Math.max(0, bestOffset - 100);
+    const fineEnd = Math.min(searchSamples, bestOffset + 100);
+    maxCorr = -Infinity;
+    
+    for (let offset = fineStart; offset < fineEnd; offset++) {
+        let corr = 0;
+        for (let i = 0; i < checkLength; i++) {
+            corr += recorded[offset + i] * sweep[i];
+        }
+        if (corr > maxCorr) {
+            maxCorr = corr;
+            bestOffset = offset;
+        }
+    }
+    
+    return bestOffset;
 }
 
 /* ─────────────────────────────────────────────
@@ -1086,14 +1139,27 @@ function analyzeBand(msg) {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
 
-        // ① IR抽出（逆畳み込み）
-        const ir = extractIR(recF32, swpF32);
+        // ① 相互相関でSweep開始位置を検出（Bluetooth遅延補正）
+        const sweepStart = findSweepStart(recF32, swpF32);
+        
+        // ② 必要な範囲を切り出し
+        // Sweep本体 + 残響（2.5秒）を確保
+        const requiredLength = swpF32.length + Math.floor(2.5 * fs);
+        const endPos = Math.min(sweepStart + requiredLength, recF32.length);
+        const trimmed = recF32.slice(sweepStart, endPos);
+        
+        // Sweep信号も同じ長さに調整（ゼロパディング）
+        const swpAdjusted = new Float32Array(trimmed.length);
+        swpAdjusted.set(swpF32, 0);
 
-        // ② 6次Butterworth BPF適用
+        // ③ IR抽出（逆畳み込み）
+        const ir = extractIR(trimmed, swpAdjusted);
+
+        // ④ 6次Butterworth BPF適用
         const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
         const irFiltered = applyBiquadCascade(ir, sections);
 
-        // ③ SNR判定（キャリブレーション結果を優先利用）
+        // ⑤ SNR判定（キャリブレーション結果を優先利用）
         const snr = calcSNR(irFiltered, bandIndex);
         if (snr < minSnr) {
             self.postMessage({
@@ -1104,10 +1170,10 @@ function analyzeBand(msg) {
             return;
         }
 
-        // ④ シュレーダー積分
+        // ⑥ シュレーダー積分
         const { edcDB, truncIdx } = schroederIntegral(irFiltered);
 
-        // ⑤ RT計算
+        // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
         if (!rtResult) {
             self.postMessage({
@@ -1247,7 +1313,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.2 Stepped Sweep仕様）
+// 測定設定（Rev 18.3 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1278,12 +1344,12 @@ const MEASUREMENT_CONFIG = {
     ],
 
     // タイミング設定（1バンドあたり / 単位: 秒）
-    // 合計: 0.5 + 1.5 + 2.0 = 4.0秒/バンド × 18バンド = 72秒
+    // Bluetooth遅延・相互相関に対応した余裕を持った設定
     timing: {
-        delay:         0.5,  // Bluetooth・デバイス安定化待機
+        delay:         1.0,  // Bluetooth安定化待機（0.5→1.0秒）
         stimulus:      1.5,  // 帯域限定 Log-Sweep 再生
-        recording:     2.0,  // 残響減衰録音
-        totalPerBand:  4.0   // 合計（参照用）
+        recording:     2.5,  // 残響減衰録音（余裕追加 2.0→2.5秒）
+        totalPerBand:  5.0   // 合計: 18バンド × 5.0秒 = 90秒
     },
 
     // 解析パラメータ
@@ -1367,41 +1433,67 @@ async function measureNoiseFloor(ctx, stream) {
         }
     };
 
-    const dummyGain = ctx.createGain();
-    dummyGain.gain.value = 0;
+    // ScriptProcessorの接続（Chrome仕様で必要）
+    // MediaStreamDestinationに接続することで物理出力を回避
+    const dummyDestination = ctx.createMediaStreamDestination();
     source.connect(processor);
-    processor.connect(dummyGain);
-    dummyGain.connect(ctx.destination);
+    processor.connect(dummyDestination);  // 仮想出力のみ
 
     await recordingDone;
 
     source.disconnect();
     processor.disconnect();
-    dummyGain.disconnect();
 
     // Raw録音データを返す（Workerで帯域別解析）
     return recorded;
 }
 
 // ─────────────────────────────────────────────────────
-// アナウンスBeep音再生
+// アナウンスBeep音再生（MediaStreamDestination方式）
 // ─────────────────────────────────────────────────────
-async function playBeep(ctx) {
+async function playBeep(ctx, speakerId) {
     const cfg = MEASUREMENT_CONFIG.beep;
+    
+    // MediaStreamDestinationを作成
+    const destination = ctx.createMediaStreamDestination();
+    
+    // Beep音生成
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
+    
     osc.type = 'sine';
     osc.frequency.value = cfg.frequency;
     gain.gain.setValueAtTime(cfg.gain, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + cfg.duration);
-
+    
     osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
+    gain.connect(destination);  // destinationに接続
+    
+    // HTMLAudioElementで再生
+    const audio = new Audio();
+    audio.srcObject = destination.stream;
+    
+    // スピーカー指定
+    if (speakerId && audio.setSinkId) {
+        try {
+            await audio.setSinkId(speakerId);
+        } catch (err) {
+            console.warn('setSinkId失敗（デフォルトスピーカー使用）:', err.message);
+        }
+    }
+    
+    osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + cfg.duration);
-
+    
+    await audio.play();
+    
+    // Beep再生完了 + 待機時間
     await sleep((cfg.duration + cfg.waitAfter) * 1000);
+    
+    // クリーンアップ
+    audio.srcObject = null;
+    osc.disconnect();
+    gain.disconnect();
 }
 
 // ─────────────────────────────────────────────────────
@@ -1438,12 +1530,24 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
 // 1バンド再生・録音
 // Sweep再生と同時に録音開始、recording秒後に停止
 // ─────────────────────────────────────────────────────
-async function playAndRecord(ctx, stream, sweepData, centerHz) {
+// ─────────────────────────────────────────────────────
+// 1バンド再生・録音（MediaStreamDestination方式・Bluetooth対応）
+// Sweep再生と同時に録音開始、recording秒後に停止
+// 前後に余裕を持たせ、相互相関で正確な位置を検出
+// ─────────────────────────────────────────────────────
+async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
     const cfg = MEASUREMENT_CONFIG.timing;
     const fs  = ctx.sampleRate;
-    const totalSamples = Math.round((cfg.stimulus + cfg.recording) * fs);
+    
+    // 録音バッファ: 前後に余裕（Bluetooth遅延・ジッター対応）
+    // 前バッファ0.5秒 + stimulus + recording + 後バッファ0.5秒
+    const preBuffer  = Math.round(0.5 * fs);
+    const postBuffer = Math.round(0.5 * fs);
+    const sweepSamples = sweepData.sweep.length;
+    const recordingSamples = Math.round(cfg.recording * fs);
+    const totalSamples = preBuffer + sweepSamples + recordingSamples + postBuffer;
 
-    // ScriptProcessorでバッファ収集（互換性重視）
+    // ScriptProcessorで録音
     const bufferSize = 4096;
     const recorded = new Float32Array(totalSamples);
     let recordedSamples = 0;
@@ -1465,23 +1569,37 @@ async function playAndRecord(ctx, stream, sweepData, centerHz) {
         }
     };
 
+    // ScriptProcessorの接続（Chrome仕様で必要）
+    // MediaStreamDestinationに接続することで物理出力を回避
+    const dummyDestination = ctx.createMediaStreamDestination();
     source.connect(processor);
-    
-    // ScriptProcessorは接続が必要（Chrome仕様）だが、
-    // destinationに直接つなぐと録音音がスピーカーに戻り2重に聞こえる
-    // → ゲイン0のダミーノードを経由
-    const dummyGain = ctx.createGain();
-    dummyGain.gain.value = 0;
-    processor.connect(dummyGain);
-    dummyGain.connect(ctx.destination);
+    processor.connect(dummyDestination);  // 仮想出力のみ
 
-    // Sweep再生
+    // MediaStreamDestination作成（Sweep再生用）
+    const destination = ctx.createMediaStreamDestination();
+    
+    // Sweep信号を準備
     const sweepBuffer = ctx.createBuffer(1, sweepData.sweep.length, fs);
     sweepBuffer.copyToChannel(sweepData.sweep, 0);
     const sweepSource = ctx.createBufferSource();
     sweepSource.buffer = sweepBuffer;
-    sweepSource.connect(ctx.destination);
-    sweepSource.start();
+    sweepSource.connect(destination);  // destinationに接続
+
+    // HTMLAudioElementで再生（スピーカー指定）
+    const audio = new Audio();
+    audio.srcObject = destination.stream;
+    
+    if (speakerId && audio.setSinkId) {
+        try {
+            await audio.setSinkId(speakerId);
+        } catch (err) {
+            console.warn(`${centerHz}Hz: setSinkId失敗（デフォルトスピーカー使用）:`, err.message);
+        }
+    }
+
+    // 録音開始 → Sweep再生開始
+    sweepSource.start(ctx.currentTime);
+    await audio.play();
 
     // 録音完了まで待機
     await recordingDone;
@@ -1490,6 +1608,11 @@ async function playAndRecord(ctx, stream, sweepData, centerHz) {
     source.disconnect();
     processor.disconnect();
     sweepSource.stop();
+    audio.pause();
+    audio.srcObject = null;
+
+    return recorded;
+}
 
     return recorded;
 }
@@ -1525,7 +1648,7 @@ async function runMeasurementSequence() {
     progressEl.style.display = 'block';
     document.getElementById('progressBar').style.width = '0%';
     document.getElementById('progressCount').textContent = '0 / 18';
-    document.getElementById('progressTime').textContent = '残り約 74 秒';
+    document.getElementById('progressTime').textContent = '残り約 90 秒';
     document.getElementById('progressLabel').textContent = '準備中...';
 
     // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
@@ -1579,12 +1702,15 @@ async function runMeasurementSequence() {
     }
 
     // ── ステージ1: アナウンスBeep + 測定開始通知 ──
-    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約74秒）';
+    // スピーカーデバイスIDを取得
+    const speakerId = document.getElementById('spkSelect').value;
+    
+    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約90秒）';
     statusEl.className = 'status-msg calibrating';
     document.getElementById('recordingAlert').classList.add('active');
 
     try {
-        await playBeep(audioContext);
+        await playBeep(audioContext, speakerId);
     } catch (err) {
         // Beep失敗は非致命的 → 続行
         console.warn('Beep再生失敗（続行）:', err.message);
@@ -1641,7 +1767,7 @@ async function runMeasurementSequence() {
         let recorded;
         try {
             recorded = await playAndRecord(
-                audioContext, mediaStream, sweepData, centerHz
+                audioContext, mediaStream, sweepData, centerHz, speakerId
             );
         } catch (err) {
             console.warn(`${centerHz}Hz 録音失敗:`, err.message);
