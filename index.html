@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.0): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.2): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -71,7 +71,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.0 新規追加）
+           測定進捗バー（Rev 18.2 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -158,7 +158,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.0): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.2): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -193,7 +193,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.0 新規追加）
+             測定進捗バー（Rev 18.2 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -204,7 +204,7 @@
             <div class="measure-progress-bar-track">
                 <div id="progressBar" class="measure-progress-bar-fill"></div>
             </div>
-            <div id="progressTime" class="measure-progress-time">残り約 72 秒</div>
+            <div id="progressTime" class="measure-progress-time">残り約 74 秒</div>
         </div>
         <!-- ======================================== -->
         
@@ -736,7 +736,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.0 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.2 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -745,12 +745,17 @@ const workerCode = `
 // INIT受信で設定を保持
 let _fs  = 48000;
 let _cfg = null;
+let _noiseFloor = null; // キャリブレーション結果（18バンド）
 
 self.onmessage = function(e) {
     const msg = e.data;
     if (msg.type === 'INIT') {
         _fs  = msg.sampleRate;
         _cfg = msg.config;
+        return;
+    }
+    if (msg.type === 'CALIBRATION') {
+        _noiseFloor = msg.noiseFloor;
         return;
     }
     if (msg.type === 'ANALYZE_BAND') {
@@ -910,7 +915,12 @@ function applyBiquadCascade(signal, sections) {
    IRピーク付近エネルギー vs 末尾ノイズフロアの
    エネルギー密度比（サンプル数正規化）
 ───────────────────────────────────────────── */
-function calcSNR(ir) {
+/* ─────────────────────────────────────────────
+   SNR計算
+   事前測定したノイズフロアがあればそれを使用
+   なければIR末尾から推定（従来方式）
+───────────────────────────────────────────── */
+function calcSNR(ir, bandIndex) {
     const N = ir.length;
 
     // ピーク位置を探す
@@ -920,20 +930,31 @@ function calcSNR(ir) {
         if (v > peakVal) { peakVal = v; peakIdx = i; }
     }
 
-    // ピーク後15%をIR帯、末尾25%をノイズ帯
+    // ピーク後15%をIR帯
     const irEnd   = Math.min(N, peakIdx + Math.floor(N * 0.15));
-    const nStart  = Math.floor(N * 0.75);
     const irCount = irEnd - peakIdx;
-    const nCount  = N - nStart;
+    if (irCount <= 0) return 60;
 
-    if (irCount <= 0 || nCount <= 0) return 60;
-
-    let irE = 0, nE = 0;
+    let irE = 0;
     for (let i = peakIdx; i < irEnd; i++) irE += ir[i]*ir[i];
-    for (let i = nStart;  i < N;     i++) nE  += ir[i]*ir[i];
+    const irRMS = Math.sqrt(irE / irCount);
 
-    if (nE < 1e-20) return 60;
-    return 10.0 * Math.log10((irE / irCount) / (nE / nCount));
+    // ノイズレベル: キャリブレーション結果を優先
+    let noiseRMS;
+    if (_noiseFloor && bandIndex >= 0 && bandIndex < _noiseFloor.length) {
+        noiseRMS = _noiseFloor[bandIndex];
+    } else {
+        // フォールバック: IR末尾から推定
+        const nStart  = Math.floor(N * 0.75);
+        const nCount  = N - nStart;
+        if (nCount <= 0) return 60;
+        let nE = 0;
+        for (let i = nStart; i < N; i++) nE += ir[i]*ir[i];
+        noiseRMS = Math.sqrt(nE / nCount);
+    }
+
+    if (noiseRMS < 1e-20) return 60;
+    return 20.0 * Math.log10(irRMS / noiseRMS);
 }
 
 /* ─────────────────────────────────────────────
@@ -1029,6 +1050,9 @@ function analyzeBand(msg) {
     const bpfOrder = (_cfg && _cfg.analysis) ? _cfg.analysis.bpfOrder :  6;
     const bpfMargin= (_cfg && _cfg.analysis) ? _cfg.analysis.bpfMargin: 0.05;
 
+    // バンドインデックスを求める（ノイズフロア参照用）
+    const bandIndex = (_cfg && _cfg.bands) ? _cfg.bands.indexOf(band) : -1;
+
     try {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
@@ -1040,8 +1064,8 @@ function analyzeBand(msg) {
         const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
         const irFiltered = applyBiquadCascade(ir, sections);
 
-        // ③ SNR判定
-        const snr = calcSNR(irFiltered);
+        // ③ SNR判定（キャリブレーション結果を優先利用）
+        const snr = calcSNR(irFiltered, bandIndex);
         if (snr < minSnr) {
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
@@ -1194,7 +1218,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.0 Stepped Sweep仕様）
+// 測定設定（Rev 18.2 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1281,6 +1305,98 @@ function updateProgress(bandIndex, bandHz, status) {
                                         status === 'ok'        ? '完了' :
                                         status === 'skip'      ? 'SNR不足 → スキップ' :
                                         status === 'stopping'  ? '早期停止判定中...' : '');
+}
+
+// ─────────────────────────────────────────────────────
+// キャリブレーション: ノイズフロア測定（2秒無音録音）
+// ─────────────────────────────────────────────────────
+async function measureNoiseFloor(ctx, stream) {
+    const fs = ctx.sampleRate;
+    const duration = 2.0; // 秒
+    const totalSamples = Math.round(duration * fs);
+
+    // ScriptProcessorで録音
+    const bufferSize = 4096;
+    const recorded = new Float32Array(totalSamples);
+    let recordedSamples = 0;
+    let resolveRecording;
+    const recordingDone = new Promise(r => { resolveRecording = r; });
+
+    const source = ctx.createMediaStreamSource(stream);
+    const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
+
+    processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        for (let i = 0; i < input.length; i++) {
+            if (recordedSamples < totalSamples) {
+                recorded[recordedSamples++] = input[i];
+            }
+        }
+        if (recordedSamples >= totalSamples) {
+            resolveRecording();
+        }
+    };
+
+    const dummyGain = ctx.createGain();
+    dummyGain.gain.value = 0;
+    source.connect(processor);
+    processor.connect(dummyGain);
+    dummyGain.connect(ctx.destination);
+
+    await recordingDone;
+
+    source.disconnect();
+    processor.disconnect();
+    dummyGain.disconnect();
+
+    // FFTで帯域別ノイズレベルを計算
+    return calculateBandNoiseFloor(recorded, fs);
+}
+
+// ─────────────────────────────────────────────────────
+// 帯域別ノイズフロア計算（18バンド）
+// ─────────────────────────────────────────────────────
+function calculateBandNoiseFloor(signal, fs) {
+    const bands = MEASUREMENT_CONFIG.bands; // 18バンド
+    const noiseFloor = new Array(18);
+
+    // FFT用にゼロパディング
+    const N = 1 << Math.ceil(Math.log2(signal.length));
+    const re = new Float64Array(N);
+    const im = new Float64Array(N);
+    for (let i = 0; i < signal.length; i++) re[i] = signal[i];
+
+    // 簡易FFT（Workerと同じアルゴリズムは使えないのでDFTで代用）
+    // 実用上は各バンド中心周波数±5%の範囲のパワーを計算
+    for (let bi = 0; bi < bands.length; bi++) {
+        const fc = bands[bi];
+        const fLow  = fc / Math.sqrt(2) * 1.05;
+        const fHigh = fc * Math.sqrt(2) * 0.95;
+        
+        let power = 0;
+        let count = 0;
+        
+        // 該当周波数帯域のビンのパワーを積算
+        for (let k = 0; k < N / 2; k++) {
+            const freq = k * fs / N;
+            if (freq >= fLow && freq <= fHigh) {
+                // DFT（計算量多いが2秒分だけなので許容）
+                let rePart = 0, imPart = 0;
+                for (let n = 0; n < signal.length; n++) {
+                    const angle = -2 * Math.PI * k * n / N;
+                    rePart += signal[n] * Math.cos(angle);
+                    imPart += signal[n] * Math.sin(angle);
+                }
+                power += (rePart * rePart + imPart * imPart);
+                count++;
+            }
+        }
+        
+        // 平均パワー → RMS
+        noiseFloor[bi] = count > 0 ? Math.sqrt(power / (count * signal.length)) : 1e-10;
+    }
+
+    return noiseFloor;
 }
 
 // ─────────────────────────────────────────────────────
@@ -1425,7 +1541,7 @@ async function runMeasurementSequence() {
     progressEl.style.display = 'block';
     document.getElementById('progressBar').style.width = '0%';
     document.getElementById('progressCount').textContent = '0 / 18';
-    document.getElementById('progressTime').textContent = '残り約 72 秒';
+    document.getElementById('progressTime').textContent = '残り約 74 秒';
     document.getElementById('progressLabel').textContent = '準備中...';
 
     // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
@@ -1479,7 +1595,7 @@ async function runMeasurementSequence() {
     }
 
     // ── ステージ1: アナウンスBeep + 測定開始通知 ──
-    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約72秒）';
+    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約74秒）';
     statusEl.className = 'status-msg calibrating';
     document.getElementById('recordingAlert').classList.add('active');
 
@@ -1488,6 +1604,28 @@ async function runMeasurementSequence() {
     } catch (err) {
         // Beep失敗は非致命的 → 続行
         console.warn('Beep再生失敗（続行）:', err.message);
+    }
+
+    // ── ステージ1.5: キャリブレーション（ノイズフロア測定） ──
+    statusEl.textContent = '📊 環境ノイズを測定中...（2秒）';
+    statusEl.className = 'status-msg calibrating';
+    
+    let noiseFloor;
+    try {
+        noiseFloor = await measureNoiseFloor(audioContext, mediaStream);
+        
+        // Workerにノイズフロアデータを送信
+        measurementWorker.postMessage({
+            type: 'CALIBRATION',
+            noiseFloor: noiseFloor
+        });
+        
+        console.info('ノイズフロア測定完了:', noiseFloor.map((v, i) => 
+            `${MEASUREMENT_CONFIG.bands[i]}Hz: ${(20 * Math.log10(v)).toFixed(1)}dB`
+        ).join(', '));
+    } catch (err) {
+        console.warn('ノイズフロア測定失敗（デフォルト値使用）:', err.message);
+        noiseFloor = new Array(18).fill(1e-6); // フォールバック
     }
 
     // ── ステージ2: 18バンド逐次測定 ──
