@@ -1046,27 +1046,21 @@ function ifft(re, im) {
 function findSweepStart(recorded, sweep) {
     const fs = _fs;
     
-    // 録音開始200msをスキップ（OSの録音立ち上がりノイズを回避）
-    const skipSamples = Math.floor(0.2 * fs);  // 200ms
+    // Skip first 200ms to avoid OS recording startup noise
+    const skipSamples = Math.floor(0.2 * fs);
     
-    // スキャン範囲: 200ms後から2.5秒（Bluetooth遅延を想定）
+    // Search range: 200ms to 2.5s (Bluetooth delay tolerance)
     const searchSamples = Math.min(
         Math.floor(2.5 * fs),
         recorded.length - sweep.length
     );
     
-    if (searchSamples <= skipSamples) {
-        self.postMessage({ 
-            type: 'debug', 
-            message: '⚠️ 相互相関: 検索範囲不足（録音が短すぎる）' 
-        });
-        return skipSamples;
-    }
+    if (searchSamples <= skipSamples) return skipSamples;
     
-    // チェック長: Sweepの最初の0.2秒（0.1秒→0.2秒に延長で精度向上）
+    // Check length: first 0.2s of sweep (improved from 0.1s)
     const checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
     
-    // ① 粗いスキャン（100サンプル刻み）
+    // Step 1: Coarse scan (100-sample steps)
     let maxCorr = -Infinity;
     let bestOffset = skipSamples;
     
@@ -1081,7 +1075,7 @@ function findSweepStart(recorded, sweep) {
         }
     }
     
-    // ② 細かい調整（±100サンプル範囲で1サンプル刻み）
+    // Step 2: Fine adjustment (1-sample steps within ±100 range)
     const fineStart = Math.max(skipSamples, bestOffset - 100);
     const fineEnd = Math.min(searchSamples, bestOffset + 100);
     maxCorr = -Infinity;
@@ -1097,8 +1091,7 @@ function findSweepStart(recorded, sweep) {
         }
     }
     
-    // ③ 相関の信頼度評価（正規化）
-    // エネルギー計算
+    // Step 3: Calculate correlation confidence (normalized)
     let recEnergy = 0;
     let swpEnergy = 0;
     for (let i = 0; i < checkLength; i++) {
@@ -1108,17 +1101,16 @@ function findSweepStart(recorded, sweep) {
     
     const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * swpEnergy) + 1e-10);
     
-    // デバッグログ
+    // Debug log
     self.postMessage({ 
         type: 'debug', 
-        message: `相互相関: offset=${bestOffset}サンプル (${(bestOffset/fs).toFixed(3)}秒), 信頼度=${normalizedCorr.toFixed(3)}` 
+        message: `Correlation: offset=${bestOffset} samples (${(bestOffset/fs).toFixed(3)}s), confidence=${normalizedCorr.toFixed(3)}` 
     });
     
-    // 信頼度が低すぎる場合は警告
     if (normalizedCorr < 0.3) {
         self.postMessage({ 
             type: 'debug', 
-            message: `⚠️ 相互相関信頼度が低い (${normalizedCorr.toFixed(3)} < 0.3): 同期失敗の可能性` 
+            message: `Warning: Low correlation confidence (${normalizedCorr.toFixed(3)} < 0.3)` 
         });
     }
     
@@ -1358,22 +1350,12 @@ function analyzeBand(msg) {
     // バンドインデックスを求める（ノイズフロア参照用）
     const bandIndex = (_cfg && _cfg.bands) ? _cfg.bands.indexOf(band) : -1;
 
-    self.postMessage({ 
-        type: 'debug', 
-        message: `${band}Hz解析開始: 録音=${recorded.length}サンプル, Sweep=${sweep.length}サンプル` 
-    });
-
     try {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
 
         // ① 相互相関でSweep開始位置を検出（Bluetooth遅延補正）
         const sweepStart = findSweepStart(recF32, swpF32);
-        
-        self.postMessage({ 
-            type: 'debug', 
-            message: `${band}Hz: Sweep開始位置=${sweepStart}サンプル (${(sweepStart/fs).toFixed(3)}秒)` 
-        });
         
         // ② 必要な範囲を切り出し
         // Sweep本体 + 残響（2.5秒）を確保
@@ -1392,19 +1374,8 @@ function analyzeBand(msg) {
         const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
         const irFiltered = applyBiquadCascade(ir, sections);
 
-        self.postMessage({ 
-            type: 'debug', 
-            message: `${band}Hz: IR抽出完了、BPF適用完了` 
-        });
-
         // ⑤ SNR判定（キャリブレーション結果を優先利用）
         const snr = calcSNR(irFiltered, bandIndex);
-        
-        self.postMessage({ 
-            type: 'debug', 
-            message: `${band}Hz: SNR=${snr.toFixed(1)}dB (閾値=${minSnr}dB)` 
-        });
-        
         if (snr < minSnr) {
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
@@ -1417,18 +1388,9 @@ function analyzeBand(msg) {
         // ⑥ シュレーダー積分
         const { edcDB, truncIdx } = schroederIntegral(irFiltered);
 
-        self.postMessage({ 
-            type: 'debug', 
-            message: `${band}Hz: Schroeder積分完了、truncIdx=${truncIdx}` 
-        });
-
         // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
         if (!rtResult) {
-            self.postMessage({ 
-                type: 'debug', 
-                message: `${band}Hz: RT計算失敗（減衰カーブ不十分）` 
-            });
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
                 snr: +snr.toFixed(1),
@@ -1436,11 +1398,6 @@ function analyzeBand(msg) {
             });
             return;
         }
-
-        self.postMessage({ 
-            type: 'debug', 
-            message: `${band}Hz: ✅ RT60=${rtResult.rt60.toFixed(3)}秒 (${rtResult.method})` 
-        });
 
         self.postMessage({
             type:   'bandResult',
@@ -1451,10 +1408,6 @@ function analyzeBand(msg) {
         });
 
     } catch (err) {
-        self.postMessage({ 
-            type: 'debug', 
-            message: `❌ ${band}Hz: Worker内部エラー - ${err.message}` 
-        });
         self.postMessage({
             type: 'bandResult', band, rt60: null, snr: 0,
             reason: 'Worker内部エラー: ' + err.message
@@ -1469,10 +1422,7 @@ function initWorker() {
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     measurementWorker = new Worker(URL.createObjectURL(blob));
     measurementWorker.onmessage = function(e) {
-        if (e.data.type === 'debug') {
-            console.log(`[Worker] ${e.data.message}`);
-            return;
-        }
+        if (e.data.type === 'debug') return;
         if (e.data.type === 'result') handleMeasurementResult(e.data);
         if (e.data.type === 'error') handleMeasurementError(e.data.message);
     };
