@@ -1588,13 +1588,10 @@ async function measureNoiseFloor(ctx, stream) {
 }
 
 // ─────────────────────────────────────────────────────
-// アナウンスBeep音再生（MediaStreamDestination方式）
+// アナウンスBeep音再生（iOS対応）
 // ─────────────────────────────────────────────────────
 async function playBeep(ctx, speakerId) {
     const cfg = MEASUREMENT_CONFIG.beep;
-    
-    // MediaStreamDestinationを作成
-    const destination = ctx.createMediaStreamDestination();
     
     // Beep音生成
     const osc = ctx.createOscillator();
@@ -1606,39 +1603,50 @@ async function playBeep(ctx, speakerId) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + cfg.duration);
     
     osc.connect(gain);
-    gain.connect(destination);  // destinationに接続
     
-    // HTMLAudioElementで再生
-    const audio = new Audio();
-    audio.srcObject = destination.stream;
-    
-    // スピーカー指定
-    if (speakerId && audio.setSinkId) {
-        try {
-            await audio.setSinkId(speakerId);
-        } catch (err) {
-            console.warn('setSinkId失敗（デフォルトスピーカー使用）:', err.message);
+    if (isIOS) {
+        // iOS: 直接接続（シンプル・安定）
+        gain.connect(ctx.destination);
+        
+        // AudioContext.resume()（iOS必須）
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
         }
+        
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + cfg.duration);
+        
+    } else {
+        // PC/Android: MediaStreamDestination経由（スピーカー選択可能）
+        const destination = ctx.createMediaStreamDestination();
+        gain.connect(destination);
+        
+        // HTMLAudioElementで再生
+        const audio = new Audio();
+        audio.srcObject = destination.stream;
+        
+        // スピーカー指定
+        if (speakerId && typeof audio.setSinkId === 'function') {
+            try {
+                await audio.setSinkId(speakerId);
+            } catch (err) {
+                console.warn('setSinkId失敗（デフォルトスピーカー使用）:', err.message);
+            }
+        }
+        
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + cfg.duration);
+        
+        await audio.play();
     }
-    
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + cfg.duration);
-    
-    await audio.play();
     
     // Beep再生完了 + 待機時間
     await sleep((cfg.duration + cfg.waitAfter) * 1000);
     
     // クリーンアップ
-    audio.srcObject = null;
     osc.disconnect();
     gain.disconnect();
 }
-
-// ─────────────────────────────────────────────────────
-// 帯域限定 Log-Sweep 生成
-// ISO 266:2003準拠カットオフ（5%内側）
-// ─────────────────────────────────────────────────────
 function generateBandSweep(centerHz, sampleRate, durationSec) {
     const margin = MEASUREMENT_CONFIG.analysis.bpfMargin;
     const fLow  = (centerHz / Math.sqrt(2)) * (1 + margin);
