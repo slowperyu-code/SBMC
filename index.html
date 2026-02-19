@@ -1442,6 +1442,14 @@ function handleMeasurementResult(data) {
     // Eyringモードでcalculate()を実行
     calculate();
 }
+
+function handleMeasurementError(message) {
+    const statusEl = document.getElementById('measureStatus');
+    document.getElementById('startMeasBtn').disabled = false;
+    document.getElementById('measureProgress').style.display = 'none';
+    document.getElementById('recordingAlert').classList.remove('active');
+    statusEl.textContent = '❌ ' + message;
+    statusEl.className = 'status-msg error';
 }
 
 window.addEventListener('DOMContentLoaded', function() { initWorker(); });
