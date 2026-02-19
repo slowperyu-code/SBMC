@@ -1743,8 +1743,8 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
     }
 
     // コサイン窓フェード（Tukey窓）
-    // フェード時間を長めに（100ms）してゼロクロッシングを確実に
-    const fadeSamples = Math.round(0.1 * sampleRate);  // 50ms → 100ms
+    // フェード時間50ms：エネルギー保持97.5%、DC対策十分、ゼロクロス確実
+    const fadeSamples = Math.round(0.05 * sampleRate);  // 50ms（最適値）
     
     for (let i = 0; i < fadeSamples; i++) {
         const progress = i / fadeSamples;  // 0 → 1
