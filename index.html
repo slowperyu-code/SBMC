@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.5): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.6): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.5 新規追加）
+           測定進捗バー（Rev 18.6 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.5): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.6): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -188,6 +188,20 @@
                     <option value="">デバイスを選択...</option>
                 </select>
             </div>
+            
+            <!-- SNRプロファイル選択 -->
+            <div style="margin-top: 12px;">
+                <label>測定精度プロファイル</label>
+                <select id="snrProfile" onchange="updateSNRProfileInfo()">
+                    <option value="low">低（内蔵デバイス向け）</option>
+                    <option value="medium" selected>中（推奨・Bluetooth）</option>
+                    <option value="high">高（ISO準拠）</option>
+                </select>
+                <small id="snrProfileInfo" style="display:block; margin-top:4px; color:var(--dim); font-size:0.7rem;">
+                    一般的な音響測定に適しています
+                </small>
+            </div>
+            
             <button class="btn-base btn-estimate" id="startMeasBtn" onclick="runMeasurementSequence()">
                 測定開始
             </button>
@@ -196,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.5 新規追加）
+             測定進捗バー（Rev 18.6 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -412,6 +426,30 @@ let roomSizeBuffer = { w: 4.0, d: 6.0, h: 2.6 }; // 部屋サイズのバッフ�
 let measurementActive = false; // 測定値使用中フラグ
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent); // iOS判定
 
+// SNRプロファイル定義（3段階）
+const SNR_PROFILES = {
+    low: {
+        label: '低（内蔵デバイス向け）',
+        threshold: 8,  // dB
+        description: 'スマホ/PC内蔵スピーカー・マイク',
+        warning: '精度は低下しますが、簡易測定が可能です'
+    },
+    medium: {
+        label: '中（Bluetooth/小型スピーカー）',
+        threshold: 15, // dB（標準値）
+        description: 'Bluetoothスピーカー、小型外部スピーカー',
+        warning: '一般的な音響測定に適しています'
+    },
+    high: {
+        label: '高（ISO準拠・プロ測定）',
+        threshold: 25, // dB
+        description: '専用測定機器、大型スピーカーシステム',
+        warning: 'ISO 3382準拠の高精度測定'
+    }
+};
+
+let currentSNRProfile = 'medium'; // デフォルト
+
 function init() {
     const appSelect = document.getElementById('appTarget');
     SOUNDBOX_DB.apps.forEach((app, idx) => {
@@ -509,6 +547,20 @@ function enableRoomSizeInputs() {
     document.getElementById('w').disabled = false;
     document.getElementById('d').disabled = false;
     document.getElementById('h').disabled = false;
+}
+
+// ─────────────────────────────────────────────────────
+// SNRプロファイル情報更新
+// ─────────────────────────────────────────────────────
+function updateSNRProfileInfo() {
+    const select = document.getElementById('snrProfile');
+    const info = document.getElementById('snrProfileInfo');
+    const profile = SNR_PROFILES[select.value];
+    
+    if (profile) {
+        info.textContent = `${profile.description} - SNR閾値: ${profile.threshold}dB`;
+        currentSNRProfile = select.value;
+    }
 }
 
 function setMode(mode) {
@@ -873,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.5 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.6 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1461,7 +1513,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.5 Stepped Sweep仕様）
+// 測定設定（Rev 18.6 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1661,23 +1713,47 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
     const fLow  = (centerHz / Math.sqrt(2)) * (1 + margin);
     const fHigh = (centerHz * Math.sqrt(2)) * (1 - margin);
 
-    const N = Math.round(durationSec * sampleRate);
-    const sweep = new Float32Array(N);
+    // ガードバンド（前150ms + 後100ms）
+    const guardPre  = Math.round(0.15 * sampleRate);  // 150ms前ガード
+    const guardPost = Math.round(0.10 * sampleRate);  // 100ms後ガード
+    
+    // Sweep本体
+    const sweepSamples = Math.round(durationSec * sampleRate);
     const k = Math.log(fHigh / fLow) / durationSec;
 
-    for (let i = 0; i < N; i++) {
-        const t = i / sampleRate;
-        const phase = 2 * Math.PI * fLow * (Math.exp(k * t) - 1) / k;
-        sweep[i] = Math.sin(phase) * MEASUREMENT_CONFIG.sweepGain;
+    // 全体サイズ = 前ガード + Sweep + 後ガード
+    const totalSamples = guardPre + sweepSamples + guardPost;
+    const sweep = new Float32Array(totalSamples);
+    
+    // 前ガードバンド: 完全な無音
+    for (let i = 0; i < guardPre; i++) {
+        sweep[i] = 0;
     }
 
-    // 先頭・末尾50msフェード（OSのリミッター・エコーキャンセル回避）
-    // AES推奨値: 20-100ms、50msは中庸で効果的
+    // Sweep信号生成
+    for (let i = 0; i < sweepSamples; i++) {
+        const t = i / sampleRate;
+        const phase = 2 * Math.PI * fLow * (Math.exp(k * t) - 1) / k;
+        sweep[guardPre + i] = Math.sin(phase) * MEASUREMENT_CONFIG.sweepGain;
+    }
+    
+    // 後ガードバンド: 完全な無音
+    for (let i = 0; i < guardPost; i++) {
+        sweep[guardPre + sweepSamples + i] = 0;
+    }
+
+    // コサイン窓フェード（Tukey窓）: 先頭・末尾50ms
+    // 線形フェードより滑らかで高域ノイズが少ない
     const fadeSamples = Math.round(0.05 * sampleRate);
+    
     for (let i = 0; i < fadeSamples; i++) {
-        const fade = i / fadeSamples;
-        sweep[i] *= fade;
-        sweep[N - 1 - i] *= fade;
+        // フェードイン（コサイン窓）: 0 → 1
+        const fadeIn = 0.5 * (1 - Math.cos(Math.PI * i / fadeSamples));
+        sweep[guardPre + i] *= fadeIn;
+        
+        // フェードアウト（コサイン窓）: 1 → 0
+        const fadeOut = 0.5 * (1 - Math.cos(Math.PI * (fadeSamples - i) / fadeSamples));
+        sweep[guardPre + sweepSamples - 1 - i] *= fadeOut;
     }
 
     return { sweep, fLow, fHigh };
@@ -1853,11 +1929,20 @@ async function runMeasurementSequence() {
         return;
     }
 
-    // ── WorkerへINIT送信（sampleRate・config一括通知） ──
+    // ── WorkerへINIT送信（sampleRate・config一括通知 + SNR閾値） ──
+    const snrProfile = SNR_PROFILES[currentSNRProfile];
+    const configWithSNR = {
+        ...MEASUREMENT_CONFIG,
+        analysis: {
+            ...MEASUREMENT_CONFIG.analysis,
+            minSnr: snrProfile.threshold  // SNRプロファイルから閾値を設定
+        }
+    };
+    
     measurementWorker.postMessage({
         type:       'INIT',
         sampleRate: audioContext.sampleRate,
-        config:     MEASUREMENT_CONFIG
+        config:     configWithSNR
     });
 
     // AudioContext.resume()（ブラウザのAutoplay Policyに対応）
