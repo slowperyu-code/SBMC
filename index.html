@@ -1104,13 +1104,13 @@ function findSweepStart(recorded, sweep) {
     // Debug log
     self.postMessage({ 
         type: 'debug', 
-        message: `Correlation: offset=${bestOffset} samples (${(bestOffset/fs).toFixed(3)}s), confidence=${normalizedCorr.toFixed(3)}` 
+        message: 'Correlation: offset=' + bestOffset + ' samples (' + (bestOffset/fs).toFixed(3) + 's), confidence=' + normalizedCorr.toFixed(3)
     });
     
     if (normalizedCorr < 0.3) {
         self.postMessage({ 
             type: 'debug', 
-            message: `Warning: Low correlation confidence (${normalizedCorr.toFixed(3)} < 0.3)` 
+            message: 'Warning: Low correlation confidence (' + normalizedCorr.toFixed(3) + ' < 0.3)' 
         });
     }
     
@@ -1475,14 +1475,14 @@ function handleMeasurementResult(data) {
         statusEl.className = 'status-msg error';
 
         const reasonText =
-            `測定された有効バンド数: ${validOctaveCount} / 6\n` +
-            `最低4バンドが必要ですが、達成できませんでした。\n\n` +
-            `欠損バンド: ${missingBands.join(', ')}\n\n` +
-            `改善策:\n` +
-            `・スピーカー音量を上げてください\n` +
-            `・環境ノイズを下げてください\n` +
-            `・低域が出ないスマホスピーカーの場合は外部スピーカー使用を推奨`;
-
+        const reasonText =
+            '測定された有効バンド数: ' + validOctaveCount + ' / 6\n' +
+            '最低4バンドが必要ですが、達成できませんでした。\n\n' +
+            '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
+            '改善策:\n' +
+            '・スピーカー音量を上げてください\n' +
+            '・環境ノイズを下げてください\n' +
+            '・低域が出ないスマホスピーカーの場合は外部スピーカー使用を推奨';
         document.getElementById('warningReason').textContent = reasonText;
         warnEl.className = 'warning-box'; // 赤枠
         warnEl.style.display = 'block';
@@ -1505,16 +1505,16 @@ function handleMeasurementResult(data) {
         
     } else {
         // 🟡 警告付き成功（4-5/6バンド）
-        statusEl.textContent = `⚠️ 測定完了（参考値として利用可能: ${validOctaveCount}/6バンド）`;
+        statusEl.textContent = '⚠️ 測定完了（参考値として利用可能: ' + validOctaveCount + '/6バンド）';
         statusEl.className = 'status-msg warning';
 
         const reasonText =
-            `一部のバンドでデータが取得できませんでした。\n` +
-            `欠損バンド: ${missingBands.join(', ')}\n\n` +
-            `測定値は参考値として利用できますが、全バンドでの測定を推奨します。` +
+        const reasonText =
+            '一部のバンドでデータが取得できませんでした。\n' +
+            '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
+            '測定値は参考値として利用できますが、全バンドでの測定を推奨します。' +
             (missingBands.includes('125Hz') ? 
-                `\n\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。` : '');
-        
+                '\n\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。' : '');
         document.getElementById('warningReason').textContent = reasonText;
         warnEl.className = 'warning-box warning-yellow'; // 黄色枠
         warnEl.style.display = 'block';
