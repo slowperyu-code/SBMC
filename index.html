@@ -1475,7 +1475,6 @@ function handleMeasurementResult(data) {
         statusEl.className = 'status-msg error';
 
         const reasonText =
-        const reasonText =
             '測定された有効バンド数: ' + validOctaveCount + ' / 6\n' +
             '最低4バンドが必要ですが、達成できませんでした。\n\n' +
             '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
@@ -1508,7 +1507,6 @@ function handleMeasurementResult(data) {
         statusEl.textContent = '⚠️ 測定完了（参考値として利用可能: ' + validOctaveCount + '/6バンド）';
         statusEl.className = 'status-msg warning';
 
-        const reasonText =
         const reasonText =
             '一部のバンドでデータが取得できませんでした。\n' +
             '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
