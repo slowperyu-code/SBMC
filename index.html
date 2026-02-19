@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.7): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.8): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -73,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.7 新規追加）
+           測定進捗バー（Rev 18.8 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -162,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.7): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.8): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -211,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.7 新規追加）
+             測定進捗バー（Rev 18.8 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -926,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.7 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.8 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1047,22 +1046,31 @@ function ifft(re, im) {
 function findSweepStart(recorded, sweep) {
     const fs = _fs;
     
-    // スキャン範囲: 最初の2.5秒（Bluetooth遅延を想定）
+    // 録音開始200msをスキップ（OSの録音立ち上がりノイズを回避）
+    const skipSamples = Math.floor(0.2 * fs);  // 200ms
+    
+    // スキャン範囲: 200ms後から2.5秒（Bluetooth遅延を想定）
     const searchSamples = Math.min(
         Math.floor(2.5 * fs),
         recorded.length - sweep.length
     );
     
-    if (searchSamples <= 0) return 0;
+    if (searchSamples <= skipSamples) {
+        self.postMessage({ 
+            type: 'debug', 
+            message: '⚠️ 相互相関: 検索範囲不足（録音が短すぎる）' 
+        });
+        return skipSamples;
+    }
     
-    // チェック長: Sweepの最初の0.1秒（高速化）
-    const checkLength = Math.min(Math.floor(0.1 * fs), sweep.length);
+    // チェック長: Sweepの最初の0.2秒（0.1秒→0.2秒に延長で精度向上）
+    const checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
     
     // ① 粗いスキャン（100サンプル刻み）
     let maxCorr = -Infinity;
-    let bestOffset = 0;
+    let bestOffset = skipSamples;
     
-    for (let offset = 0; offset < searchSamples; offset += 100) {
+    for (let offset = skipSamples; offset < searchSamples; offset += 100) {
         let corr = 0;
         for (let i = 0; i < checkLength; i++) {
             corr += recorded[offset + i] * sweep[i];
@@ -1074,7 +1082,7 @@ function findSweepStart(recorded, sweep) {
     }
     
     // ② 細かい調整（±100サンプル範囲で1サンプル刻み）
-    const fineStart = Math.max(0, bestOffset - 100);
+    const fineStart = Math.max(skipSamples, bestOffset - 100);
     const fineEnd = Math.min(searchSamples, bestOffset + 100);
     maxCorr = -Infinity;
     
@@ -1087,6 +1095,31 @@ function findSweepStart(recorded, sweep) {
             maxCorr = corr;
             bestOffset = offset;
         }
+    }
+    
+    // ③ 相関の信頼度評価（正規化）
+    // エネルギー計算
+    let recEnergy = 0;
+    let swpEnergy = 0;
+    for (let i = 0; i < checkLength; i++) {
+        recEnergy += recorded[bestOffset + i] * recorded[bestOffset + i];
+        swpEnergy += sweep[i] * sweep[i];
+    }
+    
+    const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * swpEnergy) + 1e-10);
+    
+    // デバッグログ
+    self.postMessage({ 
+        type: 'debug', 
+        message: `相互相関: offset=${bestOffset}サンプル (${(bestOffset/fs).toFixed(3)}秒), 信頼度=${normalizedCorr.toFixed(3)}` 
+    });
+    
+    // 信頼度が低すぎる場合は警告
+    if (normalizedCorr < 0.3) {
+        self.postMessage({ 
+            type: 'debug', 
+            message: `⚠️ 相互相関信頼度が低い (${normalizedCorr.toFixed(3)} < 0.3): 同期失敗の可能性` 
+        });
     }
     
     return bestOffset;
@@ -1325,12 +1358,22 @@ function analyzeBand(msg) {
     // バンドインデックスを求める（ノイズフロア参照用）
     const bandIndex = (_cfg && _cfg.bands) ? _cfg.bands.indexOf(band) : -1;
 
+    self.postMessage({ 
+        type: 'debug', 
+        message: `${band}Hz解析開始: 録音=${recorded.length}サンプル, Sweep=${sweep.length}サンプル` 
+    });
+
     try {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
 
         // ① 相互相関でSweep開始位置を検出（Bluetooth遅延補正）
         const sweepStart = findSweepStart(recF32, swpF32);
+        
+        self.postMessage({ 
+            type: 'debug', 
+            message: `${band}Hz: Sweep開始位置=${sweepStart}サンプル (${(sweepStart/fs).toFixed(3)}秒)` 
+        });
         
         // ② 必要な範囲を切り出し
         // Sweep本体 + 残響（2.5秒）を確保
@@ -1349,8 +1392,19 @@ function analyzeBand(msg) {
         const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
         const irFiltered = applyBiquadCascade(ir, sections);
 
+        self.postMessage({ 
+            type: 'debug', 
+            message: `${band}Hz: IR抽出完了、BPF適用完了` 
+        });
+
         // ⑤ SNR判定（キャリブレーション結果を優先利用）
         const snr = calcSNR(irFiltered, bandIndex);
+        
+        self.postMessage({ 
+            type: 'debug', 
+            message: `${band}Hz: SNR=${snr.toFixed(1)}dB (閾値=${minSnr}dB)` 
+        });
+        
         if (snr < minSnr) {
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
@@ -1363,9 +1417,18 @@ function analyzeBand(msg) {
         // ⑥ シュレーダー積分
         const { edcDB, truncIdx } = schroederIntegral(irFiltered);
 
+        self.postMessage({ 
+            type: 'debug', 
+            message: `${band}Hz: Schroeder積分完了、truncIdx=${truncIdx}` 
+        });
+
         // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
         if (!rtResult) {
+            self.postMessage({ 
+                type: 'debug', 
+                message: `${band}Hz: RT計算失敗（減衰カーブ不十分）` 
+            });
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
                 snr: +snr.toFixed(1),
@@ -1373,6 +1436,11 @@ function analyzeBand(msg) {
             });
             return;
         }
+
+        self.postMessage({ 
+            type: 'debug', 
+            message: `${band}Hz: ✅ RT60=${rtResult.rt60.toFixed(3)}秒 (${rtResult.method})` 
+        });
 
         self.postMessage({
             type:   'bandResult',
@@ -1383,6 +1451,10 @@ function analyzeBand(msg) {
         });
 
     } catch (err) {
+        self.postMessage({ 
+            type: 'debug', 
+            message: `❌ ${band}Hz: Worker内部エラー - ${err.message}` 
+        });
         self.postMessage({
             type: 'bandResult', band, rt60: null, snr: 0,
             reason: 'Worker内部エラー: ' + err.message
@@ -1397,7 +1469,10 @@ function initWorker() {
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     measurementWorker = new Worker(URL.createObjectURL(blob));
     measurementWorker.onmessage = function(e) {
-        if (e.data.type === 'debug') return;
+        if (e.data.type === 'debug') {
+            console.log(`[Worker] ${e.data.message}`);
+            return;
+        }
         if (e.data.type === 'result') handleMeasurementResult(e.data);
         if (e.data.type === 'error') handleMeasurementError(e.data.message);
     };
@@ -1514,7 +1589,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.7 Stepped Sweep仕様）
+// 測定設定（Rev 18.8 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
