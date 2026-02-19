@@ -1387,6 +1387,9 @@ function handleMeasurementResult(data) {
         } else {
             // 3本すべてnull → このオクターブバンドは欠損
             missingBands.push(group.label);
+        }
+    }
+
     // ── 有効バンド数判定（3段階表示） ──
     if (validOctaveCount < 4) {
         // 🔴 失敗（0-3バンド）
@@ -1442,6 +1445,7 @@ function handleMeasurementResult(data) {
     // Eyringモードでcalculate()を実行
     calculate();
 }
+
 
 function handleMeasurementError(message) {
     const statusEl = document.getElementById('measureStatus');
