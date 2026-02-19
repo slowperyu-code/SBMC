@@ -1422,7 +1422,10 @@ function initWorker() {
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     measurementWorker = new Worker(URL.createObjectURL(blob));
     measurementWorker.onmessage = function(e) {
-        if (e.data.type === 'debug') return;
+        if (e.data.type === 'debug') {
+            console.log('[Worker] ' + e.data.message);
+            return;
+        }
         if (e.data.type === 'result') handleMeasurementResult(e.data);
         if (e.data.type === 'error') handleMeasurementError(e.data.message);
     };
