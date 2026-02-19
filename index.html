@@ -1394,13 +1394,13 @@ function handleMeasurementResult(data) {
         statusEl.className = 'status-msg error';
 
         const reasonText =
-            \`測定された有効バンド数: \${validOctaveCount} / 6\\n\` +
-            \`最低4バンドが必要ですが、達成できませんでした。\\n\\n\` +
-            \`欠損バンド: \${missingBands.join(', ')}\\n\\n\` +
-            \`改善策:\\n\` +
-            \`・スピーカー音量を上げてください\\n\` +
-            \`・環境ノイズを下げてください\\n\` +
-            \`・低域が出ないスマホスピーカーの場合は外部スピーカー使用を推奨\`;
+            `測定された有効バンド数: ${validOctaveCount} / 6\n` +
+            `最低4バンドが必要ですが、達成できませんでした。\n\n` +
+            `欠損バンド: ${missingBands.join(', ')}\n\n` +
+            `改善策:\n` +
+            `・スピーカー音量を上げてください\n` +
+            `・環境ノイズを下げてください\n` +
+            `・低域が出ないスマホスピーカーの場合は外部スピーカー使用を推奨`;
 
         document.getElementById('warningReason').textContent = reasonText;
         warnEl.className = 'warning-box'; // 赤枠
@@ -1424,15 +1424,15 @@ function handleMeasurementResult(data) {
         
     } else {
         // 🟡 警告付き成功（4-5/6バンド）
-        statusEl.textContent = \`⚠️ 測定完了（参考値として利用可能: \${validOctaveCount}/6バンド）\`;
+        statusEl.textContent = `⚠️ 測定完了（参考値として利用可能: ${validOctaveCount}/6バンド）`;
         statusEl.className = 'status-msg warning';
 
         const reasonText =
-            \`一部のバンドでデータが取得できませんでした。\\n\` +
-            \`欠損バンド: \${missingBands.join(', ')}\\n\\n\` +
-            \`測定値は参考値として利用できますが、全バンドでの測定を推奨します。\` +
+            `一部のバンドでデータが取得できませんでした。\n` +
+            `欠損バンド: ${missingBands.join(', ')}\n\n` +
+            `測定値は参考値として利用できますが、全バンドでの測定を推奨します。` +
             (missingBands.includes('125Hz') ? 
-                \`\\n\\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。\` : '');
+                `\n\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。` : '');
         
         document.getElementById('warningReason').textContent = reasonText;
         warnEl.className = 'warning-box warning-yellow'; // 黄色枠
@@ -1442,9 +1442,6 @@ function handleMeasurementResult(data) {
     // Eyringモードでcalculate()を実行
     calculate();
 }
-    document.getElementById('recordingAlert').classList.remove('active');
-    statusEl.textContent = '❌ ' + message;
-    statusEl.className = 'status-msg error';
 }
 
 window.addEventListener('DOMContentLoaded', function() { initWorker(); });
