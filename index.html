@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.4): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.5): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -68,10 +68,11 @@
         .status-msg.calibrating { background: rgba(210, 153, 34, 0.1); color: var(--warning); }
         .status-msg.analyzing { background: rgba(56, 139, 253, 0.1); color: var(--accent); }
         .status-msg.success { background: rgba(57, 211, 83, 0.1); color: var(--success); }
+        .status-msg.warning { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.4 新規追加）
+           測定進捗バー（Rev 18.5 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -158,7 +159,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.4): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.5): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -193,7 +194,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.4 新規追加）
+             測定進捗バー（Rev 18.5 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -405,6 +406,9 @@ let selectedSpecs = [{}, {}, {}];
 let lastData = {};
 let currentMode = 'sim';
 let measurementData = null;
+let roomSizeBuffer = { w: 4.0, d: 6.0, h: 2.6 }; // 部屋サイズのバッファ
+let measurementActive = false; // 測定値使用中フラグ
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent); // iOS判定
 
 function init() {
     const appSelect = document.getElementById('appTarget');
@@ -478,21 +482,67 @@ function init() {
     calculate();
 }
 
+// ─────────────────────────────────────────────────────
+// 部屋サイズ入力欄の制御
+// ─────────────────────────────────────────────────────
+function saveRoomSizeToBuffer() {
+    roomSizeBuffer.w = parseFloat(document.getElementById('w').value);
+    roomSizeBuffer.d = parseFloat(document.getElementById('d').value);
+    roomSizeBuffer.h = parseFloat(document.getElementById('h').value);
+}
+
+function restoreRoomSizeFromBuffer() {
+    document.getElementById('w').value = roomSizeBuffer.w;
+    document.getElementById('d').value = roomSizeBuffer.d;
+    document.getElementById('h').value = roomSizeBuffer.h;
+}
+
+function disableRoomSizeInputs() {
+    document.getElementById('w').disabled = true;
+    document.getElementById('d').disabled = true;
+    document.getElementById('h').disabled = true;
+}
+
+function enableRoomSizeInputs() {
+    document.getElementById('w').disabled = false;
+    document.getElementById('d').disabled = false;
+    document.getElementById('h').disabled = false;
+}
+
 function setMode(mode) {
     currentMode = mode;
     const btnSim = document.getElementById('btnSim');
     const btnMeasure = document.getElementById('btnMeasure');
+    
     if (mode === 'sim') {
         btnSim.classList.add('active');
         btnSim.classList.remove('measure');
         btnMeasure.classList.remove('active', 'measure');
         document.getElementById('measurementPanel').style.display = 'none';
+        
+        // シミュレーションモード：部屋サイズ入力を復元・編集可能
+        enableRoomSizeInputs();
+        if (measurementActive) {
+            restoreRoomSizeFromBuffer();
+        }
+        measurementActive = false;
+        
     } else {
         btnSim.classList.remove('active');
         btnMeasure.classList.add('active', 'measure');
         document.getElementById('measurementPanel').style.display = 'block';
         enumerateDevices();
+        
+        // 測定モード：測定値がある場合はグレーアウト
+        if (measurementData && measurementData.length > 0) {
+            disableRoomSizeInputs();
+            measurementActive = true;
+        } else {
+            enableRoomSizeInputs();
+            measurementActive = false;
+        }
     }
+    
     const methodBadge = document.getElementById('methodBadge');
     methodBadge.textContent = mode === 'sim' ? 'SABINE' : 'EYRING';
     methodBadge.style.background = mode === 'sim' ? 'var(--accent)' : 'var(--warning)';
@@ -700,12 +750,24 @@ function calculate() {
     const actualWallArea = Math.max(0, S_wall - exArea);
     const rt_before = [], rt_after = [];
     const m_coeffs = [0, 0, 0, 0, 0.002, 0.007];
+    
     for (let i = 0; i < 6; i++) {
         let A_base = actualWallArea * wallMat.data[i] + S_ceiling * ceilingMat.data[i] + S_floor * floorMat.data[i];
         if (exArea > 0 && exMat) A_base += exArea * exMat.data[i];
         const airAbsorption = 4 * m_coeffs[i] * V;
-        let rt_b = (currentMode === 'measure' && measurementData && measurementData[i]) ? measurementData[i] : (0.161 * V) / (A_base + airAbsorption);
+        
+        // Before値の決定
+        let rt_b;
+        if (currentMode === 'measure' && measurementData && measurementData[i]) {
+            // 測定モード：測定値を使用
+            rt_b = measurementData[i];
+        } else {
+            // シミュレーションモード：部屋サイズから計算
+            rt_b = (0.161 * V) / (A_base + airAbsorption);
+        }
         rt_before.push(rt_b);
+        
+        // パネル吸音力の計算
         let A_panels = 0;
         for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
             const spec = selectedSpecs[panelIdx];
@@ -715,9 +777,29 @@ function calculate() {
                 A_panels += product.s[spec.size] * qty * (product.d[spec.thick][i] - wallMat.data[i]);
             }
         }
-        const A_total = A_base + A_panels + airAbsorption;
-        const avgAlpha = Math.min(A_total / S_total, 0.999);
-        rt_after.push(currentMode === 'measure' ? (0.161 * V) / (-S_total * Math.log(1 - avgAlpha) + airAbsorption) : (0.161 * V) / A_total);
+        
+        // After値の計算
+        let rt_a;
+        if (currentMode === 'measure' && measurementData && measurementData[i]) {
+            // 測定モード：測定値からパネル効果を減算
+            // パネルなし状態のRT → パネルあり状態のRTへの変化量を計算
+            const A_total = A_base + A_panels + airAbsorption;
+            const avgAlpha = Math.min(A_total / S_total, 0.999);
+            const rt_with_panels = (0.161 * V) / (-S_total * Math.log(1 - avgAlpha) + airAbsorption);
+            
+            // 現状の吸音力を逆算
+            const A_current = (0.161 * V) / rt_b - airAbsorption;
+            // パネル追加後の吸音力
+            const A_after = A_current + A_panels;
+            const avgAlpha_after = Math.min((A_after + airAbsorption) / S_total, 0.999);
+            rt_a = (0.161 * V) / (-S_total * Math.log(1 - avgAlpha_after) + airAbsorption);
+            rt_a = Math.max(0.1, rt_a); // 最小0.1秒
+        } else {
+            // シミュレーションモード：Sabine式
+            const A_total = A_base + A_panels + airAbsorption;
+            rt_a = (0.161 * V) / A_total;
+        }
+        rt_after.push(rt_a);
     }
     const avgRT_after = (rt_after[2] + rt_after[3]) / 2;
     const avgRT_before = (rt_before[2] + rt_before[3]) / 2;
@@ -789,7 +871,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.4 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.5 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1328,34 +1410,39 @@ function handleMeasurementResult(data) {
     // ── 測定成功: measurementDataに格納してcalculate()実行 ──
     measurementData = octaveResults;
 
-    statusEl.textContent = 
-        `✅ 測定完了 (有効バンド: ${validOctaveCount}/6)` +
-        (missingBands.length > 0 ? ` ⚠️ 欠損: ${missingBands.join(', ')}` : '');
-    statusEl.className = 'status-msg success';
+    // ── 測定成功: measurementDataに格納してcalculate()実行 ──
+    measurementData = octaveResults;
+    
+    // 部屋サイズをバッファに保存し、入力欄をグレーアウト
+    saveRoomSizeToBuffer();
+    disableRoomSizeInputs();
+    measurementActive = true;
 
-    // 欠損がある場合は警告表示（ただし続行）
-    if (missingBands.length > 0 && missingBands.length <= 2) {
+    if (validOctaveCount === 6) {
+        // 🟢 完全成功（6/6バンド）
+        statusEl.textContent = '✅ 測定完了（全バンド成功）';
+        statusEl.className = 'status-msg success';
+        warnEl.style.display = 'none';
+        
+    } else {
+        // 🟡 警告付き成功（4-5/6バンド）
+        statusEl.textContent = \`⚠️ 測定完了（参考値として利用可能: \${validOctaveCount}/6バンド）\`;
+        statusEl.className = 'status-msg warning';
+
         const reasonText =
-            `一部のバンドでデータが取得できませんでした。\n` +
-            `欠損バンド: ${missingBands.join(', ')}\n\n` +
-            `計算は継続しますが、精度が低下する可能性があります。` +
+            \`一部のバンドでデータが取得できませんでした。\\n\` +
+            \`欠損バンド: \${missingBands.join(', ')}\\n\\n\` +
+            \`測定値は参考値として利用できますが、全バンドでの測定を推奨します。\` +
             (missingBands.includes('125Hz') ? 
-                `\n\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。` : '');
+                \`\\n\\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。\` : '');
         
         document.getElementById('warningReason').textContent = reasonText;
         warnEl.style.display = 'block';
-    } else {
-        warnEl.style.display = 'none';
     }
 
     // Eyringモードでcalculate()を実行
     calculate();
 }
-
-function handleMeasurementError(message) {
-    const statusEl = document.getElementById('measureStatus');
-    document.getElementById('startMeasBtn').disabled = false;
-    document.getElementById('measureProgress').style.display = 'none';
     document.getElementById('recordingAlert').classList.remove('active');
     statusEl.textContent = '❌ ' + message;
     statusEl.className = 'status-msg error';
@@ -1366,7 +1453,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.4 Stepped Sweep仕様）
+// 測定設定（Rev 18.5 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1629,37 +1716,51 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
     source.connect(processor);
     processor.connect(dummyDestination);  // 仮想出力のみ
 
-    // MediaStreamDestination作成（Sweep再生用）
-    const destination = ctx.createMediaStreamDestination();
-    
     // Sweep信号を準備
     const sweepBuffer = ctx.createBuffer(1, sweepData.sweep.length, fs);
     sweepBuffer.copyToChannel(sweepData.sweep, 0);
     const sweepSource = ctx.createBufferSource();
     sweepSource.buffer = sweepBuffer;
-    sweepSource.connect(destination);  // destinationに接続
 
-    // HTMLAudioElementで再生（スピーカー指定）
-    const audio = new Audio();
-    audio.srcObject = destination.stream;
-    
-    if (speakerId && audio.setSinkId) {
-        try {
-            await audio.setSinkId(speakerId);
-        } catch (err) {
-            console.warn(`${centerHz}Hz: setSinkId失敗（デフォルトスピーカー使用）:`, err.message);
+    if (isIOS) {
+        // iOS専用パス：MediaStreamDestination回避（ぶつ切れ対策）
+        // スピーカー選択は諦めるが、音は安定
+        sweepSource.connect(ctx.destination);
+        
+        // AudioContext.resume()（iOS必須）
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
         }
-    }
+        
+        sweepSource.start(ctx.currentTime);
+        
+    } else {
+        // PC/Android：MediaStreamDestination経由（スピーカー選択可能）
+        const destination = ctx.createMediaStreamDestination();
+        sweepSource.connect(destination);
 
-    // HTMLAudioElementの再生を先に開始
-    await audio.play();
-    
-    // 再生が確実に始まるまで待機（100ms）
-    // これによりAudioContextとHTMLAudioElementのタイミングがズレない
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // BufferSourceを開始
-    sweepSource.start(ctx.currentTime);
+        // HTMLAudioElementで再生（スピーカー指定）
+        const audio = new Audio();
+        audio.srcObject = destination.stream;
+        
+        if (speakerId && typeof audio.setSinkId === 'function') {
+            try {
+                await audio.setSinkId(speakerId);
+            } catch (err) {
+                console.warn(`${centerHz}Hz: setSinkId失敗（デフォルトスピーカー使用）:`, err.message);
+            }
+        }
+
+        // HTMLAudioElementの再生を先に開始
+        await audio.play();
+        
+        // 再生が確実に始まるまで待機（100ms）
+        // これによりAudioContextとHTMLAudioElementのタイミングがズレない
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // BufferSourceを開始
+        sweepSource.start(ctx.currentTime);
+    }
 
     // 録音完了まで待機
     await recordingDone;
@@ -1667,9 +1768,13 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
     // クリーンアップ
     source.disconnect();
     processor.disconnect();
-    sweepSource.stop();
-    audio.pause();
-    audio.srcObject = null;
+    // sweepSource.stop()は不要（BufferSourceは自動停止、明示的stop()はポップノイズの原因）
+    
+    if (!isIOS) {
+        audio.pause();
+        audio.srcObject = null;
+    }
+
 
     return recorded;
 }
