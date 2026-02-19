@@ -1738,6 +1738,9 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
     const sweepSource = ctx.createBufferSource();
     sweepSource.buffer = sweepBuffer;
 
+    // audio変数を関数スコープで宣言（iOS/非iOS両方で使えるように）
+    let audio = null;
+
     if (isIOS) {
         // iOS専用パス：MediaStreamDestination回避（ぶつ切れ対策）
         // スピーカー選択は諦めるが、音は安定
@@ -1756,7 +1759,7 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
         sweepSource.connect(destination);
 
         // HTMLAudioElementで再生（スピーカー指定）
-        const audio = new Audio();
+        audio = new Audio();
         audio.srcObject = destination.stream;
         
         if (speakerId && typeof audio.setSinkId === 'function') {
@@ -1786,11 +1789,10 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
     processor.disconnect();
     // sweepSource.stop()は不要（BufferSourceは自動停止、明示的stop()はポップノイズの原因）
     
-    if (!isIOS) {
+    if (audio) {
         audio.pause();
         audio.srcObject = null;
     }
-
 
     return recorded;
 }
@@ -1858,6 +1860,16 @@ async function runMeasurementSequence() {
         config:     MEASUREMENT_CONFIG
     });
 
+    // AudioContext.resume()（ブラウザのAutoplay Policyに対応）
+    if (audioContext.state === 'suspended') {
+        try {
+            await audioContext.resume();
+            console.info('AudioContext resumed');
+        } catch (err) {
+            console.warn('AudioContext.resume()失敗:', err.message);
+        }
+    }
+
     // ── ステージ0: マイクストリーム取得 ──
     try {
         const micId = document.getElementById('micSelect').value;
@@ -1889,6 +1901,7 @@ async function runMeasurementSequence() {
 
     try {
         await playBeep(audioContext, speakerId);
+        console.info('✅ Beep音再生完了');
     } catch (err) {
         // Beep失敗は非致命的 → 続行
         console.warn('Beep再生失敗（続行）:', err.message);
@@ -1908,12 +1921,15 @@ async function runMeasurementSequence() {
             noiseRecording: noiseRecording.buffer
         }, [noiseRecording.buffer]); // Transferable
         
-        console.info('ノイズフロア録音完了 → Workerで解析中');
+        console.info('✅ ノイズフロア録音完了 → Workerで解析中');
     } catch (err) {
-        console.warn('ノイズフロア測定失敗:', err.message);
+        console.warn('⚠️ ノイズフロア測定失敗:', err.message);
     }
+    
+    console.info('キャリブレーション完了、18バンド測定に進みます');
 
     // ── ステージ2: 18バンド逐次測定 ──
+    console.info('=== 18バンド測定開始 ===');
     const bands       = MEASUREMENT_CONFIG.bands;       // 18本
     const octaveDefs  = MEASUREMENT_CONFIG.octaveBands; // 6グループ
     const thirdResults = new Array(18).fill(null);       // 1/3oct別RT60
@@ -1925,6 +1941,7 @@ async function runMeasurementSequence() {
 
     for (let bi = 0; bi < bands.length; bi++) {
         const centerHz = bands[bi];
+        console.info(`バンド ${bi+1}/18: ${centerHz}Hz 開始`);
 
         // 進捗UI更新（測定中）
         updateProgress(bi, centerHz, 'measuring');
@@ -1935,11 +1952,20 @@ async function runMeasurementSequence() {
         await sleep(MEASUREMENT_CONFIG.timing.delay * 1000);
 
         // Sweep生成
-        const sweepData = generateBandSweep(
-            centerHz,
-            audioContext.sampleRate,
-            MEASUREMENT_CONFIG.timing.stimulus
-        );
+        let sweepData;
+        try {
+            sweepData = generateBandSweep(
+                centerHz,
+                audioContext.sampleRate,
+                MEASUREMENT_CONFIG.timing.stimulus
+            );
+            console.info(`  Sweep生成完了: ${sweepData.fLow.toFixed(1)}-${sweepData.fHigh.toFixed(1)}Hz`);
+        } catch (err) {
+            console.error(`❌ ${centerHz}Hz Sweep生成失敗:`, err.message);
+            updateProgress(bi + 1, centerHz, 'skip');
+            thirdResults[bi] = null;
+            continue;
+        }
 
         // 再生・録音
         let recorded;
