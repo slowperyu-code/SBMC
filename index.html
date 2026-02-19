@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.3): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.4): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -71,7 +71,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.3 新規追加）
+           測定進捗バー（Rev 18.4 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -158,7 +158,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.3): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.4): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -193,7 +193,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.3 新規追加）
+             測定進捗バー（Rev 18.4 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -503,41 +503,94 @@ async function enumerateDevices() {
     const statusEl = document.getElementById('measureStatus');
     const micSelect = document.getElementById('micSelect');
     const spkSelect = document.getElementById('spkSelect');
+    
     try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('このブラウザは音声入力に対応していません。Chrome/Edge/Firefoxをご利用ください。');
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') throw new Error('セキュリティ上の理由により、HTTPSページでのみ動作します。');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('このブラウザは音声入力に対応していません。Chrome/Edge/Firefoxをご利用ください。');
+        }
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+            throw new Error('セキュリティ上の理由により、HTTPSページでのみ動作します。');
+        }
+        
         statusEl.textContent = 'マイクへのアクセス権限をリクエスト中...';
         statusEl.className = 'status-msg calibrating';
+        
+        // 権限取得（デバイスラベルを解放するため）
         let stream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                }
+            });
         } catch (permError) {
-            if (permError.name === 'NotAllowedError') throw new Error('マイクへのアクセスが拒否されました。ブラウザのアドレスバー横のアイコンからマイクを許可してください。');
-            else if (permError.name === 'NotFoundError') throw new Error('マイクデバイスが見つかりません。マイクが接続されているか確認してください。');
-            else throw new Error('マイクへのアクセスに失敗しました: ' + permError.message);
+            if (permError.name === 'NotAllowedError') {
+                throw new Error('マイクへのアクセスが拒否されました。ブラウザのアドレスバー横のアイコンからマイクを許可してください。');
+            } else if (permError.name === 'NotFoundError') {
+                throw new Error('マイクデバイスが見つかりません。マイクが接続されているか確認してください。');
+            } else {
+                throw new Error('マイクへのアクセスに失敗しました: ' + permError.message);
+            }
         }
+        
+        // 権限取得直後は300ms待機（ブラウザのデバイス情報更新を待つ）
         statusEl.textContent = 'デバイスを検索中...';
-        if (stream) stream.getTracks().forEach(track => track.stop());
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // デバイスリスト取得
         const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        // ストリーム停止
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        
+        // setSinkId対応チェック
+        const canSetSink = 'setSinkId' in HTMLAudioElement.prototype;
+        
+        // リスト初期化
         micSelect.innerHTML = '<option value="">デバイスを選択...</option>';
-        spkSelect.innerHTML = '<option value="">デバイスを選択...</option>';
+        spkSelect.innerHTML = '<option value="">(既定の出力)</option>';
+        
         let micCount = 0, spkCount = 0;
+        
         devices.forEach(device => {
             const option = document.createElement('option');
             option.value = device.deviceId;
-            option.textContent = device.label || `${device.kind === 'audioinput' ? 'マイク' : 'スピーカー'} ${device.deviceId.substr(0, 8)}...`;
-            if (device.kind === 'audioinput') { micSelect.appendChild(option); micCount++; }
-            else if (device.kind === 'audiooutput') { spkSelect.appendChild(option); spkCount++; }
+            option.textContent = device.label || `${device.kind === 'audioinput' ? 'マイク' : 'スピーカー'} (${device.deviceId.substr(0, 8)}...)`;
+            
+            if (device.kind === 'audioinput') {
+                micSelect.appendChild(option);
+                micCount++;
+            } else if (device.kind === 'audiooutput') {
+                if (!canSetSink) {
+                    option.disabled = true;
+                    option.textContent += ' (非対応)';
+                }
+                spkSelect.appendChild(option);
+                spkCount++;
+            }
         });
+        
+        // 結果表示
         if (micCount > 0) {
-            statusEl.textContent = `✅ デバイス検出完了: マイク ${micCount}台、スピーカー ${spkCount}台`;
+            let message = `✅ デバイス検出完了: マイク ${micCount}台、スピーカー ${spkCount}台`;
+            if (!canSetSink) {
+                message += '\n⚠️ このブラウザはスピーカー選択に非対応です。システム設定の既定デバイスが使用されます。';
+            }
+            statusEl.textContent = message;
             statusEl.className = 'status-msg ready';
+            
+            // デフォルト選択
             if (micSelect.options.length > 1) micSelect.selectedIndex = 1;
-            if (spkSelect.options.length > 1) spkSelect.selectedIndex = 1;
+            if (spkSelect.options.length > 1 && canSetSink) spkSelect.selectedIndex = 1;
         } else {
             statusEl.textContent = '⚠️ マイクデバイスが見つかりません。マイクが接続されているか確認してください。';
             statusEl.className = 'status-msg error';
         }
+        
     } catch (error) {
         statusEl.textContent = '❌ ' + (error.message || 'デバイスの取得に失敗しました');
         statusEl.className = 'status-msg error';
@@ -736,7 +789,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.3 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.4 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1313,7 +1366,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.3 Stepped Sweep仕様）
+// 測定設定（Rev 18.4 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1515,8 +1568,9 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
         sweep[i] = Math.sin(phase) * MEASUREMENT_CONFIG.sweepGain;
     }
 
-    // 先頭・末尾5msフェード（クリックノイズ防止）
-    const fadeSamples = Math.round(0.005 * sampleRate);
+    // 先頭・末尾50msフェード（OSのリミッター・エコーキャンセル回避）
+    // AES推奨値: 20-100ms、50msは中庸で効果的
+    const fadeSamples = Math.round(0.05 * sampleRate);
     for (let i = 0; i < fadeSamples; i++) {
         const fade = i / fadeSamples;
         sweep[i] *= fade;
@@ -1597,9 +1651,15 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
         }
     }
 
-    // 録音開始 → Sweep再生開始
-    sweepSource.start(ctx.currentTime);
+    // HTMLAudioElementの再生を先に開始
     await audio.play();
+    
+    // 再生が確実に始まるまで待機（100ms）
+    // これによりAudioContextとHTMLAudioElementのタイミングがズレない
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // BufferSourceを開始
+    sweepSource.start(ctx.currentTime);
 
     // 録音完了まで待機
     await recordingDone;
