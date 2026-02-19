@@ -1742,18 +1742,20 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
         sweep[guardPre + sweepSamples + i] = 0;
     }
 
-    // コサイン窓フェード（Tukey窓）: 先頭・末尾50ms
-    // 線形フェードより滑らかで高域ノイズが少ない
-    const fadeSamples = Math.round(0.05 * sampleRate);
+    // コサイン窓フェード（Tukey窓）
+    // フェード時間を長めに（100ms）してゼロクロッシングを確実に
+    const fadeSamples = Math.round(0.1 * sampleRate);  // 50ms → 100ms
     
     for (let i = 0; i < fadeSamples; i++) {
+        const progress = i / fadeSamples;  // 0 → 1
+        
         // フェードイン（コサイン窓）: 0 → 1
-        const fadeIn = 0.5 * (1 - Math.cos(Math.PI * i / fadeSamples));
+        const fadeIn = 0.5 * (1 - Math.cos(Math.PI * progress));
         sweep[guardPre + i] *= fadeIn;
         
         // フェードアウト（コサイン窓）: 1 → 0
-        const fadeOut = 0.5 * (1 - Math.cos(Math.PI * (fadeSamples - i) / fadeSamples));
-        sweep[guardPre + sweepSamples - 1 - i] *= fadeOut;
+        const fadeOut = 0.5 * (1 + Math.cos(Math.PI * progress));
+        sweep[guardPre + sweepSamples - fadeSamples + i] *= fadeOut;
     }
 
     return { sweep, fLow, fHigh };
