@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.8): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.8-debug): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.8 新規追加）
+           測定進捗バー（Rev 18.8-debug 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.8): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.8-debug): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.8 新規追加）
+             測定進捗バー（Rev 18.8-debug 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -925,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.8 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.8-debug Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1350,12 +1350,29 @@ function analyzeBand(msg) {
     // バンドインデックスを求める（ノイズフロア参照用）
     const bandIndex = (_cfg && _cfg.bands) ? _cfg.bands.indexOf(band) : -1;
 
+    // 直接console.log（Workerからでも出力される）
+    console.log('### Worker analyzeBand START:', band + 'Hz');
+    console.log('  recorded length:', recorded.byteLength, 'bytes');
+    console.log('  sweep length:', sweep.byteLength, 'bytes');
+    
+    // postMessage経由でもログ
+    self.postMessage({ 
+        type: 'debug', 
+        message: band + 'Hz analysis started: rec=' + recorded.byteLength + 'bytes, sweep=' + sweep.byteLength + 'bytes'
+    });
+
     try {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
+        
+        console.log('### Worker: Float32Array conversion done');
+        console.log('  recF32.length:', recF32.length, 'samples');
+        console.log('  swpF32.length:', swpF32.length, 'samples');
 
         // ① 相互相関でSweep開始位置を検出（Bluetooth遅延補正）
+        console.log('### Worker: Starting findSweepStart...');
         const sweepStart = findSweepStart(recF32, swpF32);
+        console.log('### Worker: findSweepStart returned:', sweepStart);
         
         // ② 必要な範囲を切り出し
         // Sweep本体 + 残響（2.5秒）を確保
@@ -1368,15 +1385,23 @@ function analyzeBand(msg) {
         swpAdjusted.set(swpF32, 0);
 
         // ③ IR抽出（逆畳み込み）
+        console.log('### Worker: Starting extractIR...');
         const ir = extractIR(trimmed, swpAdjusted);
+        console.log('### Worker: extractIR done');
 
         // ④ 6次Butterworth BPF適用
+        console.log('### Worker: Starting BPF...');
         const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
         const irFiltered = applyBiquadCascade(ir, sections);
+        console.log('### Worker: BPF done');
 
         // ⑤ SNR判定（キャリブレーション結果を優先利用）
+        console.log('### Worker: Calculating SNR...');
         const snr = calcSNR(irFiltered, bandIndex);
+        console.log('### Worker: SNR =', snr.toFixed(1), 'dB, threshold =', minSnr, 'dB');
+        
         if (snr < minSnr) {
+            console.log('### Worker: SNR insufficient, sending skip result');
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
                 snr: +snr.toFixed(1),
@@ -1422,8 +1447,14 @@ function initWorker() {
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     measurementWorker = new Worker(URL.createObjectURL(blob));
     measurementWorker.onmessage = function(e) {
+        // デバッグ：全メッセージをログ
+        console.log('=== Worker Message Received ===', e.data.type);
+        
         if (e.data.type === 'debug') {
+            // 3つの方法でログ出力
             console.log('[Worker] ' + e.data.message);
+            console.info('[Worker-INFO] ' + e.data.message);
+            console.warn('[Worker-DEBUG] ' + e.data.message);
             return;
         }
         if (e.data.type === 'result') handleMeasurementResult(e.data);
@@ -1540,7 +1571,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.8 Stepped Sweep仕様）
+// 測定設定（Rev 18.8-debug Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -2115,16 +2146,35 @@ async function runMeasurementSequence() {
         }
 
         // WorkerにRaw録音データ + Sweep情報を送信して解析
+        console.log(`=== ${centerHz}Hz: Workerへデータ送信 ===`);
+        console.log(`  録音データ: ${recorded.length}サンプル`);
+        console.log(`  Sweepデータ: ${sweepData.sweep.length}サンプル`);
+        
         const workerResult = await new Promise((resolve) => {
             measurementWorker.onmessage = (e) => {
-                if (e.data.type === 'bandResult') resolve(e.data);
+                // デバッグ：全メッセージをログ
+                console.log('=== Worker Message ===', e.data.type);
+                
+                if (e.data.type === 'debug') {
+                    console.log('[Worker] ' + e.data.message);
+                    console.info('[Worker-INFO] ' + e.data.message);
+                    console.warn('[Worker-DEBUG] ' + e.data.message);
+                    return;
+                }
+                if (e.data.type === 'bandResult') {
+                    console.log(`=== ${centerHz}Hz: Worker結果受信 ===`, e.data);
+                    resolve(e.data);
+                }
             };
+            
+            console.log(`=== ${centerHz}Hz: postMessage実行 ===`);
             measurementWorker.postMessage({
                 type:     'ANALYZE_BAND',
                 band:     centerHz,
                 recorded: recorded.buffer,
                 sweep:    sweepData.sweep.buffer
             }, [recorded.buffer, sweepData.sweep.buffer]); // Transferable
+            console.log(`=== ${centerHz}Hz: postMessage完了、結果待機中 ===`);
         });
 
         if (workerResult.type === 'bandResult' && workerResult.rt60 !== null) {
