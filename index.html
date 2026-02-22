@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.9.5): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.10): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.9.5 新規追加）
+           測定進捗バー（Rev 18.10 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.9.5): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.10): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.9.5 新規追加）
+             測定進捗バー（Rev 18.10 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -925,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.9.5 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.10 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1277,9 +1277,8 @@ function calcSNR(ir, bandIndex) {
         noiseRMS = Math.sqrt(nE / nCount);
     }
 
-    if (noiseRMS < 1e-20) return { snr: 60, irRMS };
-    const snr = 20.0 * Math.log10(irRMS / noiseRMS);
-    return { snr, irRMS };
+    if (noiseRMS < 1e-20) return 60;
+    return 20.0 * Math.log10(irRMS / noiseRMS);
 }
 
 /* ─────────────────────────────────────────────
@@ -1287,16 +1286,18 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir, irRMS, snr) {
+function schroederIntegral(ir) {
     const N = ir.length;
 
-    // IRドメインのノイズ密度を逆算
-    // calcSNR: snr = 20*log10(irRMS / irNoiseRMS)
-    // → irNoiseRMS = irRMS / 10^(snr/20)
-    // → noiseDensity = irNoiseRMS² （1サンプルあたりのエネルギー）
-    const snrLinear = Math.pow(10, snr / 20);
-    const irNoiseRMS = irRMS / snrLinear;
-    const noiseDensity = irNoiseRMS * irNoiseRMS;
+    // ノイズ密度推定: IR末尾5%を使用
+    // 理由: log-sweepの逆フィルタは低周波ノイズを増幅するため、
+    //       生マイクノイズ(_noiseFloor)をそのまま使うと乖離が生じる。
+    //       IR全長4.25sの末尾5%(約0.21s)は、RT60 < 1.0sの空間では
+    //       残響エネルギーが完全消滅した後のIRドメインノイズのみが残る区間。
+    const nStart = Math.floor(N * 0.95);
+    let nE = 0;
+    for (let i = nStart; i < N; i++) nE += ir[i]*ir[i];
+    const noiseDensity = nE / (N - nStart);
 
     // 後退積分
     const cum = new Float64Array(N);
@@ -1320,12 +1321,10 @@ function schroederIntegral(ir, irRMS, snr) {
     // 診断ログ
     const truncSec = (truncIdx / _fs).toFixed(3);
     const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
-    const edcStart = edcDB[0] > -999 ? edcDB[0].toFixed(1) : 'N/A';
     self.postMessage({ type: 'debug',
-        message: '[Schroeder] N=' + N + ' truncIdx=' + truncIdx + ' (' + truncSec + 's)' +
-                 ' EDC[0]=' + edcStart + 'dB lastValidDB=' + lastValidDB + 'dB' +
-                 ' noiseDensity=' + noiseDensity.toExponential(3) +
-                 ' irNoiseRMS=' + irNoiseRMS.toExponential(3)
+        message: '[Schroeder] truncIdx=' + truncIdx + '(' + truncSec + 's)' +
+                 ' lastValidDB=' + lastValidDB + 'dB' +
+                 ' noiseDensity=' + noiseDensity.toExponential(3)
     });
 
     return { edcDB, truncIdx };
@@ -1438,7 +1437,7 @@ function analyzeBand(msg) {
 
         // ⑤ SNR判定（キャリブレーション結果を優先利用）
         console.log('### Worker: Calculating SNR...');
-        const { snr, irRMS } = calcSNR(irFiltered, bandIndex);
+        const snr = calcSNR(irFiltered, bandIndex);
         console.log('### Worker: SNR =', snr.toFixed(1), 'dB, threshold =', minSnr, 'dB');
         
         if (snr < minSnr) {
@@ -1452,7 +1451,7 @@ function analyzeBand(msg) {
         }
 
         // ⑥ シュレーダー積分
-        const { edcDB, truncIdx } = schroederIntegral(irFiltered, irRMS, snr);
+        const { edcDB, truncIdx } = schroederIntegral(irFiltered);
 
         // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
@@ -1612,7 +1611,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.9.5 Stepped Sweep仕様）
+// 測定設定（Rev 18.10 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
