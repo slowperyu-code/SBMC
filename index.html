@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.8-debug): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.9): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.8-debug 新規追加）
+           測定進捗バー（Rev 18.9 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.8-debug): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.9): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.8-debug 新規追加）
+             測定進捗バー（Rev 18.9 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -221,7 +221,7 @@
             <div class="measure-progress-bar-track">
                 <div id="progressBar" class="measure-progress-bar-fill"></div>
             </div>
-            <div id="progressTime" class="measure-progress-time">残り約 90 秒</div>
+            <div id="progressTime" class="measure-progress-time">残り約 93 秒</div>
         </div>
         <!-- ======================================== -->
         
@@ -925,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.8-debug Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.9 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -935,12 +935,18 @@ const workerCode = `
 let _fs  = 48000;
 let _cfg = null;
 let _noiseFloor = null; // キャリブレーション結果（18バンド）
+let _latencyOffset = null; // レイテンシーキャリブレーション結果（サンプル数）
 
 self.onmessage = function(e) {
     const msg = e.data;
     if (msg.type === 'INIT') {
         _fs  = msg.sampleRate;
         _cfg = msg.config;
+        return;
+    }
+    if (msg.type === 'SET_LATENCY') {
+        _latencyOffset = msg.latencyOffset;
+        console.log('### Worker: レイテンシーオフセット受信: ' + _latencyOffset + 'サンプル (' + (_latencyOffset/_fs).toFixed(3) + 's)');
         return;
     }
     if (msg.type === 'CALIBRATION') {
@@ -1046,25 +1052,46 @@ function ifft(re, im) {
 function findSweepStart(recorded, sweep) {
     const fs = _fs;
     
-    // Skip first 200ms to avoid OS recording startup noise
-    const skipSamples = Math.floor(0.2 * fs);
+    // レイテンシーキャリブレーション結果を使用して検索範囲を絞る
+    let searchStart, searchEnd;
     
-    // Search range: 200ms to 2.5s (Bluetooth delay tolerance)
-    const searchSamples = Math.min(
-        Math.floor(2.5 * fs),
-        recorded.length - sweep.length
-    );
+    if (_latencyOffset !== null) {
+        // キャリブレーション済み：±0.5秒のみ検索
+        const searchMargin = Math.floor(0.5 * fs);
+        searchStart = Math.max(0, _latencyOffset - searchMargin);
+        searchEnd = Math.min(recorded.length - sweep.length, _latencyOffset + searchMargin);
+        
+        self.postMessage({ 
+            type: 'debug', 
+            message: 'Search range (calibrated): ' + (searchStart/fs).toFixed(3) + 's - ' + (searchEnd/fs).toFixed(3) + 's (±0.5s around ' + (_latencyOffset/fs).toFixed(3) + 's)'
+        });
+    } else {
+        // キャリブレーションなし：従来の広範囲検索
+        searchStart = Math.floor(0.2 * fs); // 200msスキップ
+        searchEnd = Math.min(Math.floor(2.5 * fs), recorded.length - sweep.length);
+        
+        self.postMessage({ 
+            type: 'debug', 
+            message: 'Search range (uncalibrated): ' + (searchStart/fs).toFixed(3) + 's - ' + (searchEnd/fs).toFixed(3) + 's'
+        });
+    }
     
-    if (searchSamples <= skipSamples) return skipSamples;
+    if (searchEnd <= searchStart) {
+        self.postMessage({ 
+            type: 'debug', 
+            message: 'Warning: Invalid search range, using fallback'
+        });
+        return Math.floor(0.5 * fs);
+    }
     
-    // Check length: first 0.2s of sweep (improved from 0.1s)
+    // Check length: first 0.2s of sweep
     const checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
     
     // Step 1: Coarse scan (100-sample steps)
     let maxCorr = -Infinity;
-    let bestOffset = skipSamples;
+    let bestOffset = searchStart;
     
-    for (let offset = skipSamples; offset < searchSamples; offset += 100) {
+    for (let offset = searchStart; offset < searchEnd; offset += 100) {
         let corr = 0;
         for (let i = 0; i < checkLength; i++) {
             corr += recorded[offset + i] * sweep[i];
@@ -1076,8 +1103,8 @@ function findSweepStart(recorded, sweep) {
     }
     
     // Step 2: Fine adjustment (1-sample steps within ±100 range)
-    const fineStart = Math.max(skipSamples, bestOffset - 100);
-    const fineEnd = Math.min(searchSamples, bestOffset + 100);
+    const fineStart = Math.max(searchStart, bestOffset - 100);
+    const fineEnd = Math.min(searchEnd, bestOffset + 100);
     maxCorr = -Infinity;
     
     for (let offset = fineStart; offset < fineEnd; offset++) {
@@ -1571,7 +1598,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.8-debug Stepped Sweep仕様）
+// 測定設定（Rev 18.9 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1631,6 +1658,7 @@ const MEASUREMENT_CONFIG = {
 
 let audioContext = null;
 let mediaStream = null;
+let systemLatencyOffset = null;  // レイテンシーキャリブレーション結果（サンプル数）
 
 // ─────────────────────────────────────────────────────
 // ユーティリティ: 指定ミリ秒待機
@@ -1820,6 +1848,190 @@ function generateBandSweep(centerHz, sampleRate, durationSec) {
 }
 
 // ─────────────────────────────────────────────────────
+// レイテンシーキャリブレーション
+// システム固有の遅延（再生→録音）を測定
+// ─────────────────────────────────────────────────────
+
+// チャープ信号生成（キャリブレーション用）
+function generateCalibrationChirp(sampleRate) {
+    const duration = 0.1;  // 100ms
+    const f1 = 500;        // 開始周波数
+    const f2 = 2000;       // 終了周波数
+    const samples = Math.floor(duration * sampleRate);
+    const chirp = new Float32Array(samples);
+    
+    for (let i = 0; i < samples; i++) {
+        const t = i / sampleRate;
+        const phase = 2 * Math.PI * (f1 * t + (f2 - f1) * t * t / (2 * duration));
+        chirp[i] = Math.sin(phase);
+    }
+    
+    // ハニング窓でフェード
+    for (let i = 0; i < samples; i++) {
+        const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / samples));
+        chirp[i] *= window;
+    }
+    
+    return chirp;
+}
+
+// チャープ信号の位置を検出（相互相関）
+function findChirpOffset(recorded, chirp, sampleRate) {
+    // 検索範囲: 最初の2秒間
+    const searchSamples = Math.min(
+        Math.floor(2.0 * sampleRate),
+        recorded.length - chirp.length
+    );
+    
+    if (searchSamples <= 0) {
+        console.warn('⚠️ レイテンシー検出失敗: 録音が短すぎる');
+        return Math.floor(0.5 * sampleRate);
+    }
+    
+    let maxCorr = -Infinity;
+    let bestOffset = 0;
+    
+    // 粗いスキャン（100サンプル刻み）
+    for (let offset = 0; offset < searchSamples; offset += 100) {
+        let corr = 0;
+        for (let i = 0; i < chirp.length; i++) {
+            corr += recorded[offset + i] * chirp[i];
+        }
+        if (corr > maxCorr) {
+            maxCorr = corr;
+            bestOffset = offset;
+        }
+    }
+    
+    // 細かい調整（±100サンプル範囲で1サンプル刻み）
+    const fineStart = Math.max(0, bestOffset - 100);
+    const fineEnd = Math.min(searchSamples, bestOffset + 100);
+    maxCorr = -Infinity;
+    
+    for (let offset = fineStart; offset < fineEnd; offset++) {
+        let corr = 0;
+        for (let i = 0; i < chirp.length; i++) {
+            corr += recorded[offset + i] * chirp[i];
+        }
+        if (corr > maxCorr) {
+            maxCorr = corr;
+            bestOffset = offset;
+        }
+    }
+    
+    // 信頼度計算
+    let recEnergy = 0;
+    let chirpEnergy = 0;
+    for (let i = 0; i < chirp.length; i++) {
+        recEnergy += recorded[bestOffset + i] * recorded[bestOffset + i];
+        chirpEnergy += chirp[i] * chirp[i];
+    }
+    
+    const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * chirpEnergy) + 1e-10);
+    
+    console.log('チャープ検出: offset=' + bestOffset + ' (' + (bestOffset/sampleRate).toFixed(3) + 's), 信頼度=' + normalizedCorr.toFixed(3));
+    
+    if (normalizedCorr < 0.5) {
+        console.warn('⚠️ レイテンシー検出の信頼度が低い（' + normalizedCorr.toFixed(3) + ' < 0.5）');
+    }
+    
+    return bestOffset;
+}
+
+// レイテンシーキャリブレーション実行
+async function calibrateLatency(audioContext, mediaStream, speakerId) {
+    const fs = audioContext.sampleRate;
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    
+    console.log('=== レイテンシーキャリブレーション開始 ===');
+    
+    // 1. テストチャープ生成
+    const chirp = generateCalibrationChirp(fs);
+    console.log('  チャープ生成: ' + chirp.length + 'サンプル (' + (chirp.length/fs*1000).toFixed(0) + 'ms)');
+    
+    // 2. 録音時間設定（前バッファ0.5秒 + チャープ0.1秒 + 検索余裕2秒）
+    const recordingDuration = 2.6;
+    const totalSamples = Math.round(recordingDuration * fs);
+    
+    // 3. ScriptProcessorで録音準備
+    const bufferSize = 4096;
+    const recorded = new Float32Array(totalSamples);
+    let recordedSamples = 0;
+    let resolveRecording;
+    const recordingDone = new Promise(r => { resolveRecording = r; });
+    
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+    
+    processor.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        for (let i = 0; i < input.length; i++) {
+            if (recordedSamples < totalSamples) {
+                recorded[recordedSamples++] = input[i];
+            }
+        }
+        if (recordedSamples >= totalSamples) {
+            resolveRecording();
+        }
+    };
+    
+    const dummyDestination = audioContext.createMediaStreamDestination();
+    source.connect(processor);
+    processor.connect(dummyDestination);
+    
+    console.log('  録音準備完了、200ms待機...');
+    
+    // 4. 録音バッファ安定待機
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    console.log('  チャープ再生開始');
+    
+    // 5. チャープ再生
+    const chirpBuffer = audioContext.createBuffer(1, chirp.length, fs);
+    chirpBuffer.copyToChannel(chirp, 0);
+    const chirpSource = audioContext.createBufferSource();
+    chirpSource.buffer = chirpBuffer;
+    
+    if (isIOS) {
+        chirpSource.connect(audioContext.destination);
+        chirpSource.start(audioContext.currentTime);
+    } else {
+        const destination = audioContext.createMediaStreamDestination();
+        chirpSource.connect(destination);
+        
+        const audio = new Audio();
+        audio.srcObject = destination.stream;
+        
+        if (speakerId && typeof audio.setSinkId === 'function') {
+            try {
+                await audio.setSinkId(speakerId);
+            } catch (err) {
+                console.warn('Calibration: setSinkId失敗:', err.message);
+            }
+        }
+        
+        await audio.play();
+        chirpSource.start(audioContext.currentTime);
+    }
+    
+    // 6. 録音完了まで待機
+    await recordingDone;
+    
+    // 7. クリーンアップ
+    source.disconnect();
+    processor.disconnect();
+    
+    console.log('=== レイテンシー録音完了: ' + recordedSamples + 'サンプル ===');
+    
+    // 8. 相互相関でオフセット検出
+    const latencyOffset = findChirpOffset(recorded, chirp, fs);
+    
+    console.log('=== レイテンシー検出完了: ' + latencyOffset + 'サンプル (' + (latencyOffset/fs).toFixed(3) + '秒) ===');
+    
+    return latencyOffset;
+}
+
+// ─────────────────────────────────────────────────────
 // 1バンド再生・録音
 // Sweep再生と同時に録音開始、recording秒後に停止
 // ─────────────────────────────────────────────────────
@@ -1969,7 +2181,7 @@ async function runMeasurementSequence() {
     progressEl.style.display = 'block';
     document.getElementById('progressBar').style.width = '0%';
     document.getElementById('progressCount').textContent = '0 / 18';
-    document.getElementById('progressTime').textContent = '残り約 90 秒';
+    document.getElementById('progressTime').textContent = '残り約 93 秒';
     document.getElementById('progressLabel').textContent = '準備中...';
 
     // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
@@ -2045,7 +2257,7 @@ async function runMeasurementSequence() {
     // スピーカーデバイスIDを取得
     const speakerId = document.getElementById('spkSelect').value;
     
-    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約90秒）';
+    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約93秒）';
     statusEl.className = 'status-msg calibrating';
     document.getElementById('recordingAlert').classList.add('active');
 
@@ -2057,9 +2269,30 @@ async function runMeasurementSequence() {
         console.warn('Beep再生失敗（続行）:', err.message);
     }
 
+    // ── ステージ1.3: レイテンシーキャリブレーション ──
+    statusEl.textContent = '🔍 システム遅延を測定中...（約3秒）';
+    statusEl.className = 'status-msg calibrating';
+    document.getElementById('progressLabel').textContent = 'システム遅延測定中...';
+    
+    try {
+        systemLatencyOffset = await calibrateLatency(audioContext, mediaStream, speakerId);
+        
+        const latencyMs = (systemLatencyOffset / audioContext.sampleRate * 1000).toFixed(0);
+        console.info('✅ システム遅延検出: ' + systemLatencyOffset + 'サンプル (' + latencyMs + 'ms)');
+        
+        statusEl.textContent = '✅ システム遅延: ' + latencyMs + 'ms';
+        statusEl.className = 'status-msg success';
+        await sleep(1000); // 1秒間表示
+        
+    } catch (err) {
+        console.warn('⚠️ レイテンシー測定失敗、デフォルト値を使用:', err.message);
+        systemLatencyOffset = Math.floor(0.5 * audioContext.sampleRate);
+    }
+
     // ── ステージ1.5: キャリブレーション（ノイズフロア測定） ──
     statusEl.textContent = '📊 環境ノイズを測定中...（5秒）';
     statusEl.className = 'status-msg calibrating';
+    document.getElementById('progressLabel').textContent = '環境ノイズ測定中...';
     
     let noiseRecording;
     try {
@@ -2077,6 +2310,13 @@ async function runMeasurementSequence() {
     }
     
     console.info('キャリブレーション完了、18バンド測定に進みます');
+
+    // ── レイテンシーオフセットをWorkerに送信 ──
+    measurementWorker.postMessage({
+        type: 'SET_LATENCY',
+        latencyOffset: systemLatencyOffset
+    });
+    console.info('  レイテンシーオフセット送信: ' + systemLatencyOffset + 'サンプル');
 
     // ── ステージ2: 18バンド逐次測定 ──
     console.info('=== 18バンド測定開始 ===');
