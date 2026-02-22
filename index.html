@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.10): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.11): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.10 新規追加）
+           測定進捗バー（Rev 18.11 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.10): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.11): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.10 新規追加）
+             測定進捗バー（Rev 18.11 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -430,21 +430,30 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent); // iOS判定
 const SNR_PROFILES = {
     low: {
         label: '低（内蔵デバイス向け）',
-        threshold: 8,  // dB
+        threshold: 8,          // SNR閾値 [dB]
         description: 'スマホ/PC内蔵スピーカー・マイク',
-        warning: '精度は低下しますが、簡易測定が可能です'
+        warning: '精度は低下しますが、簡易測定が可能です',
+        skipBands: [0, 1, 2],  // 100, 125, 160Hz を測定対象外（内蔵SPの物理限界）
+        totalBands: 15,        // 18 - 3 = 15バンド測定
+        minValidOctaves: 4     // 5オクターブ（250Hz〜4kHz）中4以上で有効
     },
     medium: {
         label: '中（Bluetooth/小型スピーカー）',
-        threshold: 15, // dB（標準値）
+        threshold: 15,         // dB
         description: 'Bluetoothスピーカー、小型外部スピーカー',
-        warning: '一般的な音響測定に適しています'
+        warning: '一般的な音響測定に適しています',
+        skipBands: [],         // 全18バンド測定（125Hz失敗時はSabine補完）
+        totalBands: 18,
+        minValidOctaves: 4     // 6オクターブ中4以上
     },
     high: {
         label: '高（ISO準拠・プロ測定）',
-        threshold: 25, // dB
+        threshold: 25,         // dB
         description: '専用測定機器、大型スピーカーシステム',
-        warning: 'ISO 3382準拠の高精度測定'
+        warning: 'ISO 3382準拠の高精度測定',
+        skipBands: [],         // 全18バンド測定
+        totalBands: 18,
+        minValidOctaves: 5     // 6オクターブ中5以上（高精度要件）
     }
 };
 
@@ -558,7 +567,8 @@ function updateSNRProfileInfo() {
     const profile = SNR_PROFILES[select.value];
     
     if (profile) {
-        info.textContent = `${profile.description} - SNR閾値: ${profile.threshold}dB`;
+        const skipNote = profile.skipBands.length > 0 ? '・125Hz帯域は理論値' : '';
+        info.textContent = `${profile.description} - SNR閾値: ${profile.threshold}dB - ${profile.totalBands}バンド測定${skipNote}`;
         currentSNRProfile = select.value;
     }
 }
@@ -925,7 +935,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.10 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.11 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1289,42 +1299,103 @@ function calcSNR(ir, bandIndex) {
 function schroederIntegral(ir) {
     const N = ir.length;
 
-    // ノイズ密度推定: IR末尾5%を使用
-    // 理由: log-sweepの逆フィルタは低周波ノイズを増幅するため、
-    //       生マイクノイズ(_noiseFloor)をそのまま使うと乖離が生じる。
-    //       IR全長4.25sの末尾5%(約0.21s)は、RT60 < 1.0sの空間では
-    //       残響エネルギーが完全消滅した後のIRドメインノイズのみが残る区間。
-    const nStart = Math.floor(N * 0.95);
-    let nE = 0;
-    for (let i = nStart; i < N; i++) nE += ir[i]*ir[i];
-    const noiseDensity = nE / (N - nStart);
+    // ── Lundeby法によるノイズ密度の反復推定 ──
+    // Ref: Lundeby et al. (1995) "Uncertainties of measurements in room acoustics", JASA 97(3)
+    // ISO 3382-2:2008 でも推奨されるアプローチ
 
-    // 後退積分
-    const cum = new Float64Array(N);
-    cum[N-1] = ir[N-1]*ir[N-1];
-    for (let i = N-2; i >= 0; i--) cum[i] = cum[i+1] + ir[i]*ir[i];
-
-    // dB変換と動的打ち切り
-    const peak = cum[0] > 0 ? cum[0] : 1e-20;
-    const edcDB = new Float64Array(N).fill(-999);
-    let truncIdx = N - 1;
-
-    for (let i = 0; i < N; i++) {
-        // 残余エネルギーがIRドメインノイズ密度×残サンプル数の3倍を下回ったら打ち切り
-        if (cum[i] <= noiseDensity * (N - i) * 3.0) {
-            truncIdx = i;
-            break;
+    // Step 1: 10ms時間窓でRMSエネルギー密度を計算
+    const winLen = Math.max(1, Math.round(_fs * 0.01)); // 10ms窓（最低1サンプル）
+    const nWin   = Math.floor(N / winLen);
+    if (nWin < 5) {
+        // IR長が極端に短い場合のフォールバック（末尾25%）
+        const nStart = Math.floor(N * 0.75);
+        let nE = 0;
+        for (let i = nStart; i < N; i++) nE += ir[i] * ir[i];
+        const noiseDensity = nE / (N - nStart);
+        const cum = new Float64Array(N);
+        cum[N - 1] = ir[N - 1] * ir[N - 1];
+        for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
+        const peak  = cum[0] > 0 ? cum[0] : 1e-20;
+        const edcDB = new Float64Array(N).fill(-999);
+        let truncIdx = N - 1;
+        for (let i = 0; i < N; i++) {
+            if (cum[i] <= noiseDensity * (N - i) * 3.0) { truncIdx = i; break; }
+            edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
         }
-        edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
+        return { edcDB, truncIdx };
+    }
+
+    // 各窓のエネルギー密度（1サンプルあたり）
+    const winEnergy = new Float64Array(nWin);
+    for (let w = 0; w < nWin; w++) {
+        let e = 0;
+        for (let i = w * winLen; i < (w + 1) * winLen; i++) e += ir[i] * ir[i];
+        winEnergy[w] = e / winLen;
+    }
+
+    // Step 2: 末尾10%からノイズ密度の初期推定
+    const noiseTailStart = Math.floor(nWin * 0.90);
+    let noiseSum = 0;
+    for (let w = noiseTailStart; w < nWin; w++) noiseSum += winEnergy[w];
+    let noiseDensity = noiseSum / (nWin - noiseTailStart);
+
+    // Step 3: 反復収束（最大5回）
+    // ピーク窓を探す
+    let peakWin = 0;
+    let peakVal = 0;
+    for (let w = 0; w < nWin; w++) {
+        if (winEnergy[w] > peakVal) { peakVal = winEnergy[w]; peakWin = w; }
+    }
+
+    let crossWin = nWin - 1; // EDCがノイズ+10dBを下回る窓インデックス
+    for (let iter = 0; iter < 5; iter++) {
+        // ノイズ密度の10倍（+10dB）を閾値とする
+        const threshold = noiseDensity * 10.0;
+
+        // ピーク窓以降で閾値を下回る最初の窓を探す
+        let newCrossWin = nWin - 1;
+        for (let w = peakWin; w < nWin; w++) {
+            if (winEnergy[w] <= threshold) { newCrossWin = w; break; }
+        }
+        crossWin = newCrossWin;
+
+        // crossWin以降でノイズ密度を再推定
+        const reNoiseStart = Math.min(crossWin + 1, nWin - 1);
+        let reSum = 0;
+        let reCount = nWin - reNoiseStart;
+        if (reCount <= 0) break; // ノイズ区間がない場合は収束とみなす
+        for (let w = reNoiseStart; w < nWin; w++) reSum += winEnergy[w];
+        const newNoiseDensity = reSum / reCount;
+
+        // 収束判定: 変化率1%未満
+        const change = Math.abs(newNoiseDensity - noiseDensity) / (noiseDensity + 1e-30);
+        noiseDensity = newNoiseDensity;
+        if (change < 0.01) break;
+    }
+
+    // truncIdx: crossWin窓のサンプル位置（末端）
+    const truncIdx = Math.min(crossWin * winLen, N - 1);
+
+    // ── 後退積分（Schroeder積分） ──
+    const cum = new Float64Array(N);
+    cum[N - 1] = ir[N - 1] * ir[N - 1];
+    for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
+
+    // dB変換（truncIdxまで）
+    const peak  = cum[0] > 0 ? cum[0] : 1e-20;
+    const edcDB = new Float64Array(N).fill(-999);
+    for (let i = 0; i < truncIdx; i++) {
+        if (cum[i] > 0) edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
     }
 
     // 診断ログ
-    const truncSec = (truncIdx / _fs).toFixed(3);
+    const truncSec    = (truncIdx / _fs).toFixed(3);
     const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
     self.postMessage({ type: 'debug',
-        message: '[Schroeder] truncIdx=' + truncIdx + '(' + truncSec + 's)' +
+        message: '[Lundeby] N=' + N + ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
                  ' lastValidDB=' + lastValidDB + 'dB' +
-                 ' noiseDensity=' + noiseDensity.toExponential(3)
+                 ' noiseDensity=' + noiseDensity.toExponential(3) +
+                 ' crossWin=' + crossWin + '/' + nWin
     });
 
     return { edcDB, truncIdx };
@@ -1525,6 +1596,10 @@ function handleMeasurementResult(data) {
     let validOctaveCount = 0;
     const missingBands = [];
 
+    const profile          = SNR_PROFILES[currentSNRProfile];
+    const minValidOctaves  = profile.minValidOctaves;
+    const is125HzSkipped   = profile.skipBands.includes(0); // lowプロファイル
+
     // ── 18バンド → 6オクターブバンドに集約 ──
     for (let i = 0; i < octaveDefs.length; i++) {
         const group = octaveDefs[i];
@@ -1538,26 +1613,30 @@ function handleMeasurementResult(data) {
             validOctaveCount++;
         } else {
             // 3本すべてnull → このオクターブバンドは欠損
-            missingBands.push(group.label);
+            if (i === 0 && is125HzSkipped) {
+                missingBands.push('125Hz（理論値）');
+            } else {
+                missingBands.push(group.label);
+            }
         }
     }
 
     // ── 有効バンド数判定（3段階表示） ──
-    if (validOctaveCount < 4) {
-        // 🔴 失敗（0-3バンド）
+    if (validOctaveCount < minValidOctaves) {
+        // 🔴 失敗
         statusEl.textContent = '❌ 測定失敗: 有効データ不足';
         statusEl.className = 'status-msg error';
 
         const reasonText =
-            '測定された有効バンド数: ' + validOctaveCount + ' / 6\n' +
-            '最低4バンドが必要ですが、達成できませんでした。\n\n' +
+            '測定された有効バンド数: ' + validOctaveCount + ' / ' + (6 - profile.skipBands.length / 3 | 0) + '\n' +
+            '最低' + minValidOctaves + 'バンドが必要ですが、達成できませんでした。\n\n' +
             '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
             '改善策:\n' +
             '・スピーカー音量を上げてください\n' +
             '・環境ノイズを下げてください\n' +
             '・低域が出ないスマホスピーカーの場合は外部スピーカー使用を推奨';
         document.getElementById('warningReason').textContent = reasonText;
-        warnEl.className = 'warning-box'; // 赤枠
+        warnEl.className = 'warning-box';
         warnEl.style.display = 'block';
         return;
     }
@@ -1570,25 +1649,30 @@ function handleMeasurementResult(data) {
     disableRoomSizeInputs();
     measurementActive = true;
 
-    if (validOctaveCount === 6) {
-        // 🟢 完全成功（6/6バンド）
-        statusEl.textContent = '✅ 測定完了（全バンド成功）';
+    if (validOctaveCount === (6 - (profile.skipBands.length > 0 ? 1 : 0))) {
+        // 🟢 完全成功（全測定対象バンド成功）
+        statusEl.textContent = is125HzSkipped
+            ? '✅ 測定完了（全測定バンド成功・125Hzは理論値）'
+            : '✅ 測定完了（全バンド成功）';
         statusEl.className = 'status-msg success';
         warnEl.style.display = 'none';
         
     } else {
-        // 🟡 警告付き成功（4-5/6バンド）
+        // 🟡 警告付き成功（一部バンド欠損）
         statusEl.textContent = '⚠️ 測定完了（参考値として利用可能: ' + validOctaveCount + '/6バンド）';
         statusEl.className = 'status-msg warning';
 
-        const reasonText =
-            '一部のバンドでデータが取得できませんでした。\n' +
+        let warnText = '一部のバンドでデータが取得できませんでした。\n' +
             '欠損バンド: ' + missingBands.join(', ') + '\n\n' +
-            '測定値は参考値として利用できますが、全バンドでの測定を推奨します。' +
-            (missingBands.includes('125Hz') ? 
-                '\n\n※ 低域(125Hz)が欠損しています。スマホスピーカーの場合は仕様です。' : '');
-        document.getElementById('warningReason').textContent = reasonText;
-        warnEl.className = 'warning-box warning-yellow'; // 黄色枠
+            '測定値は参考値として利用できますが、全バンドでの測定を推奨します。';
+        if (is125HzSkipped) {
+            warnText += '\n\n※ 125Hzは内蔵スピーカーの物理限界のため測定対象外です。Sabine理論値で補完しています。';
+        }
+        if (missingBands.some(b => b !== '125Hz（理論値）' && !b.includes('理論値'))) {
+            warnText += '\n\n改善策: スピーカー音量を上げるか、外部スピーカーの使用をご検討ください。';
+        }
+        document.getElementById('warningReason').textContent = warnText;
+        warnEl.className = 'warning-box warning-yellow';
         warnEl.style.display = 'block';
     }
 
@@ -1611,7 +1695,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.10 Stepped Sweep仕様）
+// 測定設定（Rev 18.11 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -1683,16 +1767,16 @@ function sleep(ms) {
 // ─────────────────────────────────────────────────────
 // 進捗UI更新
 // ─────────────────────────────────────────────────────
-function updateProgress(bandIndex, bandHz, status) {
-    const total = MEASUREMENT_CONFIG.bands.length; // 18
-    const pct = Math.round((bandIndex / total) * 100);
-    const remaining = Math.round((total - bandIndex) * MEASUREMENT_CONFIG.timing.totalPerBand);
+function updateProgress(measuredCount, bandHz, status, totalBands) {
+    const total = totalBands || MEASUREMENT_CONFIG.bands.length;
+    const pct = Math.round((measuredCount / total) * 100);
+    const remaining = Math.round((total - measuredCount) * MEASUREMENT_CONFIG.timing.totalPerBand);
 
     const icons = { measuring: '🔊', ok: '✅', skip: '⚠️', stopping: '🛑' };
     const icon = icons[status] || '🔊';
 
     document.getElementById('progressBar').style.width = pct + '%';
-    document.getElementById('progressCount').textContent = bandIndex + ' / ' + total;
+    document.getElementById('progressCount').textContent = measuredCount + ' / ' + total;
     document.getElementById('progressTime').textContent = '残り約 ' + remaining + ' 秒';
     document.getElementById('progressLabel').textContent =
         icon + ' ' + bandHz + 'Hz ' + (status === 'measuring' ? '測定中...' :
@@ -2167,12 +2251,12 @@ async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
 // オクターブバンド完了時の早期打ち切り判定
 // 確定式: validOctaves + remainingOctaves < 4 → 停止
 // ─────────────────────────────────────────────────────
-function checkEarlyTermination(validOctaves, completedOctaves) {
+function checkEarlyTermination(validOctaves, completedOctaves, minValidOctaves) {
     const remaining = 6 - completedOctaves;
-    if (validOctaves + remaining < 4) {
+    if (validOctaves + remaining < minValidOctaves) {
         const msg =
             `有効データが ${validOctaves} バンドのみです。\n` +
-            `残り ${remaining} バンドを測定しても4バンドの確保が不可能なため停止しました。\n` +
+            `残り ${remaining} バンドを測定しても${minValidOctaves}バンドの確保が不可能なため停止しました。\n` +
             `スピーカー音量を上げるか、環境ノイズを下げて再測定してください。`;
         return { stop: true, reason: msg };
     }
@@ -2190,11 +2274,16 @@ async function runMeasurementSequence() {
     startBtn.disabled = true;
     document.getElementById('remeasureWarning').style.display = 'none';
 
+    // プロファイル取得（ループ全体で使用）
+    const snrProfile    = SNR_PROFILES[currentSNRProfile];
+    const totalBands    = snrProfile.totalBands;
+    const initTimeSec   = Math.round(totalBands * MEASUREMENT_CONFIG.timing.totalPerBand) + 3;
+
     // 進捗バー初期化
     progressEl.style.display = 'block';
     document.getElementById('progressBar').style.width = '0%';
-    document.getElementById('progressCount').textContent = '0 / 18';
-    document.getElementById('progressTime').textContent = '残り約 93 秒';
+    document.getElementById('progressCount').textContent = '0 / ' + totalBands;
+    document.getElementById('progressTime').textContent = '残り約 ' + initTimeSec + ' 秒';
     document.getElementById('progressLabel').textContent = '準備中...';
 
     // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
@@ -2220,12 +2309,11 @@ async function runMeasurementSequence() {
     }
 
     // ── WorkerへINIT送信（sampleRate・config一括通知 + SNR閾値） ──
-    const snrProfile = SNR_PROFILES[currentSNRProfile];
     const configWithSNR = {
         ...MEASUREMENT_CONFIG,
         analysis: {
             ...MEASUREMENT_CONFIG.analysis,
-            minSnr: snrProfile.threshold  // SNRプロファイルから閾値を設定
+            minSnr: snrProfile.threshold
         }
     };
     
@@ -2270,7 +2358,7 @@ async function runMeasurementSequence() {
     // スピーカーデバイスIDを取得
     const speakerId = document.getElementById('spkSelect').value;
     
-    statusEl.textContent = '🔔 測定を開始します。静かにしてください（約93秒）';
+    statusEl.textContent = `🔔 測定を開始します。静かにしてください（約${initTimeSec}秒）`;
     statusEl.className = 'status-msg calibrating';
     document.getElementById('recordingAlert').classList.add('active');
 
@@ -2332,23 +2420,42 @@ async function runMeasurementSequence() {
     console.info('  レイテンシーオフセット送信: ' + systemLatencyOffset + 'サンプル');
 
     // ── ステージ2: 18バンド逐次測定 ──
-    console.info('=== 18バンド測定開始 ===');
+    console.info('=== ' + totalBands + 'バンド測定開始 ===');
     const bands       = MEASUREMENT_CONFIG.bands;       // 18本
     const octaveDefs  = MEASUREMENT_CONFIG.octaveBands; // 6グループ
     const thirdResults = new Array(18).fill(null);       // 1/3oct別RT60
 
     let validOctaveCount   = 0;  // 成功したオクターブバンド数
     let completedOctaves   = 0;  // 完了したオクターブバンド数
+    let measuredCount      = 0;  // スキップを除く実測バンド数（進捗表示用）
     let earlyStop          = false;
     let earlyStopReason    = '';
 
     for (let bi = 0; bi < bands.length; bi++) {
         const centerHz = bands[bi];
-        console.info(`バンド ${bi+1}/18: ${centerHz}Hz 開始`);
+
+        // ── プロファイルによるバンドスキップ ──
+        if (snrProfile.skipBands.includes(bi)) {
+            thirdResults[bi] = null;
+            // オクターブ境界チェック（スキップバンドでも境界は処理する）
+            if ((bi + 1) % 3 === 0) {
+                completedOctaves++;
+                // スキップオクターブはvalidOctaveCountを増やさない
+                const check = checkEarlyTermination(validOctaveCount, completedOctaves, snrProfile.minValidOctaves);
+                if (check.stop) {
+                    earlyStop = true;
+                    earlyStopReason = check.reason;
+                    break;
+                }
+            }
+            continue;
+        }
+
+        console.info(`バンド ${bi+1}/18 (実測${measuredCount+1}/${totalBands}): ${centerHz}Hz 開始`);
 
         // 進捗UI更新（測定中）
-        updateProgress(bi, centerHz, 'measuring');
-        statusEl.textContent = `🔊 ${centerHz}Hz 測定中... [${bi + 1}/18]`;
+        updateProgress(measuredCount, centerHz, 'measuring', totalBands);
+        statusEl.textContent = `🔊 ${centerHz}Hz 測定中... [${measuredCount + 1}/${totalBands}]`;
         statusEl.className = 'status-msg analyzing';
 
         // delay: Bluetooth/デバイス安定化待機
@@ -2365,8 +2472,22 @@ async function runMeasurementSequence() {
             console.info(`  Sweep生成完了: ${sweepData.fLow.toFixed(1)}-${sweepData.fHigh.toFixed(1)}Hz`);
         } catch (err) {
             console.error(`❌ ${centerHz}Hz Sweep生成失敗:`, err.message);
-            updateProgress(bi + 1, centerHz, 'skip');
+            measuredCount++;
+            updateProgress(measuredCount, centerHz, 'skip', totalBands);
             thirdResults[bi] = null;
+            if ((bi + 1) % 3 === 0) {
+                completedOctaves++;
+                const octIdx = completedOctaves - 1;
+                const g = octaveDefs[octIdx].indices;
+                const octValid = g.filter(i => thirdResults[i] !== null).length;
+                if (octValid > 0) validOctaveCount++;
+                const check = checkEarlyTermination(validOctaveCount, completedOctaves, snrProfile.minValidOctaves);
+                if (check.stop) {
+                    earlyStop = true;
+                    earlyStopReason = check.reason;
+                    break;
+                }
+            }
             continue;
         }
 
@@ -2378,17 +2499,16 @@ async function runMeasurementSequence() {
             );
         } catch (err) {
             console.warn(`${centerHz}Hz 録音失敗:`, err.message);
-            updateProgress(bi + 1, centerHz, 'skip');
+            measuredCount++;
+            updateProgress(measuredCount, centerHz, 'skip', totalBands);
             thirdResults[bi] = null;
-            // オクターブバンド境界チェック（このバンドが最終1/3octなら）
-            const octIdx = Math.floor(bi / 3);
             if ((bi + 1) % 3 === 0) {
                 completedOctaves++;
-                // 現オクターブバンドの有効数確認
+                const octIdx = completedOctaves - 1;
                 const g = octaveDefs[octIdx].indices;
                 const octValid = g.filter(i => thirdResults[i] !== null).length;
                 if (octValid > 0) validOctaveCount++;
-                const check = checkEarlyTermination(validOctaveCount, completedOctaves);
+                const check = checkEarlyTermination(validOctaveCount, completedOctaves, snrProfile.minValidOctaves);
                 if (check.stop) {
                     earlyStop = true;
                     earlyStopReason = check.reason;
@@ -2430,12 +2550,13 @@ async function runMeasurementSequence() {
             console.log(`=== ${centerHz}Hz: postMessage完了、結果待機中 ===`);
         });
 
+        measuredCount++;
         if (workerResult.type === 'bandResult' && workerResult.rt60 !== null) {
             thirdResults[bi] = workerResult.rt60;
-            updateProgress(bi + 1, centerHz, 'ok');
+            updateProgress(measuredCount, centerHz, 'ok', totalBands);
         } else {
             thirdResults[bi] = null;
-            updateProgress(bi + 1, centerHz, 'skip');
+            updateProgress(measuredCount, centerHz, 'skip', totalBands);
             const reason = workerResult.reason || 'SNR不足';
             console.info(`${centerHz}Hz スキップ: ${reason}`);
         }
@@ -2448,11 +2569,11 @@ async function runMeasurementSequence() {
             const octValid = g.filter(i => thirdResults[i] !== null).length;
             if (octValid > 0) validOctaveCount++;
 
-            const check = checkEarlyTermination(validOctaveCount, completedOctaves);
+            const check = checkEarlyTermination(validOctaveCount, completedOctaves, snrProfile.minValidOctaves);
             if (check.stop) {
                 earlyStop = true;
                 earlyStopReason = check.reason;
-                updateProgress(bi + 1, centerHz, 'stopping');
+                updateProgress(measuredCount, centerHz, 'stopping', totalBands);
                 break;
             }
         }
