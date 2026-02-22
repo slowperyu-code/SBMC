@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.9.2): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.9.3): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.9.2 新規追加）
+           測定進捗バー（Rev 18.9.3 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.9.2): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.9.3): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.9.2 新規追加）
+             測定進捗バー（Rev 18.9.3 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -925,7 +925,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.9.2 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.9.3 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1314,6 +1314,16 @@ function schroederIntegral(ir) {
         edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
     }
 
+    // 診断ログ
+    const truncSec = (truncIdx / _fs).toFixed(3);
+    const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
+    const edcStart = edcDB[0] > -999 ? edcDB[0].toFixed(1) : 'N/A';
+    self.postMessage({ type: 'debug',
+        message: '[Schroeder] N=' + N + ' truncIdx=' + truncIdx + ' (' + truncSec + 's)' +
+                 ' EDC[0]=' + edcStart + 'dB lastValidDB=' + lastValidDB + 'dB' +
+                 ' noiseDensity=' + noiseDensity.toExponential(3)
+    });
+
     return { edcDB, truncIdx };
 }
 
@@ -1344,6 +1354,12 @@ function lsqRT(edcDB, truncIdx, fs, startDB, endDB) {
         if (s < 0 && edcDB[i] <= startDB) { s = i; continue; }
         if (s >= 0 && edcDB[i] <= endDB)  { e = i; break; }
     }
+    self.postMessage({ type: 'debug',
+        message: '[lsqRT] range=' + startDB + '~' + endDB + 'dB' +
+                 ' s=' + s + ' e=' + e +
+                 ' span=' + (e - s) + 'samples' +
+                 (s < 0 ? ' → startDB未到達' : e < 0 ? ' → endDB未到達(truncで打切)' : '')
+    });
     if (s < 0 || e < 0 || (e - s) < 10) return null;
 
     let n = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
@@ -1598,7 +1614,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.9.2 Stepped Sweep仕様）
+// 測定設定（Rev 18.9.3 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -2402,7 +2418,7 @@ async function runMeasurementSequence() {
                     return;
                 }
                 if (e.data.type === 'bandResult') {
-                    console.log(`=== ${centerHz}Hz: Worker結果受信 === rt60=${e.data.rt60} snr=${e.data.snr}dB reason=${e.data.reason || 'なし'} method=${e.data.method || 'なし'}`);
+                    console.log(`=== ${centerHz}Hz: Worker結果受信 ===`, e.data);
                     resolve(e.data);
                 }
             };
@@ -2424,7 +2440,7 @@ async function runMeasurementSequence() {
             thirdResults[bi] = null;
             updateProgress(bi + 1, centerHz, 'skip');
             const reason = workerResult.reason || 'SNR不足';
-            console.info(`${centerHz}Hz スキップ: ${reason} / SNR=${workerResult.snr}dB`);
+            console.info(`${centerHz}Hz スキップ: ${reason}`);
         }
 
         // ── オクターブバンド境界チェック（3バンド毎） ──
