@@ -571,11 +571,9 @@ function updateSNRProfileInfo() {
         const skipNote = profile.skipBands.length > 0
             ? '100〜160Hz は測定対象外（内蔵SP物理限界）'
             : '全18バンド（100Hz〜5kHz）を測定';
-        info.textContent =
-            profile.description + '
-' +
-            'SNR閾値: ' + profile.threshold + 'dB　' + skipNote + '
-' +
+        info.innerHTML =
+            profile.description + '<br>' +
+            'SNR閾値: ' + profile.threshold + 'dB &nbsp; ' + skipNote + '<br>' +
             profile.warning;
         currentSNRProfile = key;
     }
