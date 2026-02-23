@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.2 (Rev 18.16): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.3 (Rev 18.17): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -976,8 +976,8 @@ self.onmessage = function(e) {
         self.postMessage({ type: 'calibrationDone' }); // 完了通知
         return;
     }
-    if (msg.type === 'ANALYZE_BAND') {
-        analyzeBand(msg);
+    if (msg.type === 'ANALYZE_ALL') {
+        analyzeAll(msg);
     }
 };
 
@@ -1299,9 +1299,9 @@ function calcSNR(ir, bandIndex) {
         noiseRMS = Math.sqrt(nE / (N - nStart));
     }
 
-    if (noiseRMS < 1e-20) return { snr: 60, peakIdx: 0 };
+    if (noiseRMS < 1e-20) return { snr: 60, peakIdx: 0, noiseRMS: 1e-10 };
     const snr = 20.0 * Math.log10(irRMS / noiseRMS);
-    return { snr, peakIdx };
+    return { snr, peakIdx, noiseRMS };
 }
 
 /* ─────────────────────────────────────────────
@@ -1309,35 +1309,44 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir, snr, peakIdx) {
+function schroederIntegral(ir, snr, peakIdx, noiseRMS) {
     const N = ir.length;
 
-    // SNRベース打ち切り閾値
-    // truncDB = -(SNR - margin)
-    // margin=10dB: ノイズフロアに埋もれる前に積分を打ち切る
-    const MARGIN_DB = 10;
-    const truncDB   = -(snr - MARGIN_DB);
-
     // ── 後退積分（Schroeder積分）──
-    // ノイズ補正は行わない。
-    // 理由: _noiseFloor（生マイクノイズ）とIR内ノイズ密度（deconv後）は
-    //       別物であり、等価に扱うと過剰補正でcorrected<0になる。
     const cum = new Float64Array(N);
     cum[N - 1] = ir[N - 1] * ir[N - 1];
     for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
 
-    // 正規化基準: cum[peakIdx]（直達音到達時点のエネルギー）
-    // cum[0]を使うと直達音前ノイズが分母に混入しEDC 0dBが水増しされる
-    const peak  = cum[peakIdx] > 0 ? cum[peakIdx] : 1e-20;
+    // ── ISO 3382-2 Annex A ノイズ補正 ──
+    // noiseRMS はdeconvolution後の同一IR末尾から推定した値。
+    // _noiseFloor（生マイクRMS）はdeconv前後で特性が異なるため使用しない。
+    const noiseVariance = noiseRMS * noiseRMS;
+    const corrected = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+        corrected[i] = cum[i] - noiseVariance * (N - i);
+    }
+
+    // 補正後の基準値チェック（過剰補正検出）
+    if (corrected[peakIdx] <= 0) {
+        self.postMessage({ type: 'debug',
+            message: '[Schroeder] ISO補正失敗: corrected[peakIdx]=' +
+                     corrected[peakIdx].toExponential(3) + ' <= 0 → null返却'
+        });
+        return null;
+    }
+
+    // 打ち切り閾値（SNRベース）
+    const MARGIN_DB = 10;
+    const truncDB   = -(snr - MARGIN_DB);
+
+    const peak  = corrected[peakIdx];
     const edcDB = new Float64Array(N).fill(-999);
     let truncIdx = N - 1;
 
     for (let i = peakIdx; i < N; i++) {
-        const db = 10.0 * Math.log10(cum[i] / peak);
-        if (db <= truncDB) {
-            truncIdx = i;
-            break;
-        }
+        if (corrected[i] <= 0) { truncIdx = i; break; }
+        const db = 10.0 * Math.log10(corrected[i] / peak);
+        if (db <= truncDB) { truncIdx = i; break; }
         edcDB[i] = db;
     }
 
@@ -1452,103 +1461,92 @@ function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB) {
 /* ─────────────────────────────────────────────
    メイン解析関数
 ───────────────────────────────────────────── */
-function analyzeBand(msg) {
-    const { band, recorded, sweep } = msg;
+function analyzeAll(msg) {
+    // ── 単一ブロードバンドスイープからの全バンド解析 ──
+    // ISO 3382-2準拠: 1回のdeconvolution → 全バンド共通IR → BPF×18
+    const { recorded, sweep } = msg;
     const fs       = _fs;
     const minSnr   = (_cfg && _cfg.analysis) ? _cfg.analysis.minSnr   : 15.0;
     const bpfOrder = (_cfg && _cfg.analysis) ? _cfg.analysis.bpfOrder :  6;
     const bpfMargin= (_cfg && _cfg.analysis) ? _cfg.analysis.bpfMargin: 0.05;
+    const bands    = (_cfg && _cfg.bands)    ? _cfg.bands : [100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000];
 
-    // バンドインデックスを求める（ノイズフロア参照用）
-    const bandIndex = (_cfg && _cfg.bands) ? _cfg.bands.indexOf(band) : -1;
-
-    // 直接console.log（Workerからでも出力される）
-    console.log('### Worker analyzeBand START:', band + 'Hz');
-    console.log('  recorded length:', recorded.byteLength, 'bytes');
-    console.log('  sweep length:', sweep.byteLength, 'bytes');
-    
-    // postMessage経由でもログ
-    self.postMessage({ 
-        type: 'debug', 
-        message: band + 'Hz analysis started: rec=' + recorded.byteLength + 'bytes, sweep=' + sweep.byteLength + 'bytes'
-    });
+    self.postMessage({ type: 'debug', message: 'analyzeAll: rec=' + recorded.byteLength + 'bytes, sweep=' + sweep.byteLength + 'bytes' });
 
     try {
         const recF32 = new Float32Array(recorded);
         const swpF32 = new Float32Array(sweep);
-        
-        console.log('### Worker: Float32Array conversion done');
-        console.log('  recF32.length:', recF32.length, 'samples');
-        console.log('  swpF32.length:', swpF32.length, 'samples');
 
-        // ① 相互相関でSweep開始位置を検出（Bluetooth遅延補正）
-        console.log('### Worker: Starting findSweepStart...');
+        // ① 相互相関でSweep開始位置を一度だけ検出
         const sweepStart = findSweepStart(recF32, swpF32);
-        console.log('### Worker: findSweepStart returned:', sweepStart);
-        
-        // ② 必要な範囲を切り出し
-        // Sweep本体 + 残響（2.5秒）を確保
-        const requiredLength = swpF32.length + Math.floor(2.5 * fs);
-        const endPos = Math.min(sweepStart + requiredLength, recF32.length);
-        const trimmed = recF32.slice(sweepStart, endPos);
-        
-        // Sweep信号も同じ長さに調整（ゼロパディング）
+        self.postMessage({ type: 'debug', message: 'findSweepStart: offset=' + sweepStart + ' (' + (sweepStart/fs).toFixed(3) + 's)' });
+
+        // ② Sweep本体＋残響区間を切り出し（全バンド共通）
+        const reverbTail   = Math.floor(5.0 * fs);   // 残響取得時間 5秒
+        const requiredLen  = swpF32.length + reverbTail;
+        const endPos       = Math.min(sweepStart + requiredLen, recF32.length);
+        const trimmed      = recF32.slice(sweepStart, endPos);
+
+        // Sweep信号を同じ長さにゼロパディング
         const swpAdjusted = new Float32Array(trimmed.length);
         swpAdjusted.set(swpF32, 0);
 
-        // ③ IR抽出（逆畳み込み）
-        console.log('### Worker: Starting extractIR...');
+        // ③ 単一deconvolution → 全バンド共通IR
         const ir = extractIR(trimmed, swpAdjusted);
-        console.log('### Worker: extractIR done');
+        self.postMessage({ type: 'debug', message: 'extractIR done: ir.length=' + ir.length });
 
-        // ④ 6次Butterworth BPF適用
-        console.log('### Worker: Starting BPF...');
-        const sections  = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
-        const irFiltered = applyBiquadCascade(ir, sections);
-        console.log('### Worker: BPF done');
+        // ④ 各バンドでBPF → SNR → Schroeder（ISO補正）→ calcRT
+        const thirdResults = new Array(bands.length).fill(null);
 
-        // ⑤ SNR判定（キャリブレーション結果を優先利用）
-        console.log('### Worker: Calculating SNR...');
-        const { snr, peakIdx } = calcSNR(irFiltered, bandIndex);
-        console.log('### Worker: SNR =', snr.toFixed(1), 'dB, threshold =', minSnr, 'dB');
-        
-        if (snr < minSnr) {
-            console.log('### Worker: SNR insufficient, sending skip result');
-            self.postMessage({
-                type: 'bandResult', band, rt60: null,
-                snr: +snr.toFixed(1),
-                reason: 'SNR ' + snr.toFixed(1) + 'dB < ' + minSnr + 'dB'
+        for (let bi = 0; bi < bands.length; bi++) {
+            const band = bands[bi];
+
+            // 進捗通知
+            self.postMessage({ type: 'bandProgress', band, index: bi, total: bands.length });
+
+            // BPF適用
+            const sections   = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
+            const irFiltered = applyBiquadCascade(ir, sections);
+
+            // SNR計算（IR末尾ノイズRMSも取得）
+            const { snr, peakIdx, noiseRMS } = calcSNR(irFiltered, bi);
+
+            self.postMessage({ type: 'debug',
+                message: band + 'Hz: SNR=' + snr.toFixed(1) + 'dB peakIdx=' + peakIdx +
+                         '(' + (peakIdx/fs).toFixed(3) + 's) noiseRMS=' + noiseRMS.toExponential(3)
             });
-            return;
+
+            if (snr < minSnr) {
+                self.postMessage({ type: 'debug', message: band + 'Hz: SNR不足 → skip' });
+                continue;
+            }
+
+            // Schroeder積分（ISO 3382-2 Annex A ノイズ補正）
+            const schResult = schroederIntegral(irFiltered, snr, peakIdx, noiseRMS);
+            if (!schResult) {
+                self.postMessage({ type: 'debug', message: band + 'Hz: Schroeder補正失敗 → skip' });
+                continue;
+            }
+            const { edcDB, truncIdx } = schResult;
+
+            // RT計算
+            const rtResult = calcRT(edcDB, truncIdx, peakIdx, fs);
+            if (!rtResult) {
+                self.postMessage({ type: 'debug', message: band + 'Hz: RT計算失敗 → skip' });
+                continue;
+            }
+
+            thirdResults[bi] = +rtResult.rt60.toFixed(3);
+            self.postMessage({ type: 'debug',
+                message: band + 'Hz: RT60=' + thirdResults[bi] + 's (' + rtResult.method + ', R²=' + rtResult.r2.toFixed(3) + ')'
+            });
         }
 
-        // ⑥ シュレーダー積分
-        const { edcDB, truncIdx } = schroederIntegral(irFiltered, snr, peakIdx);
-
-        // ⑦ RT計算
-        const rtResult = calcRT(edcDB, truncIdx, peakIdx, fs);
-        if (!rtResult) {
-            self.postMessage({
-                type: 'bandResult', band, rt60: null,
-                snr: +snr.toFixed(1),
-                reason: 'RT計算失敗（減衰カーブ不十分）'
-            });
-            return;
-        }
-
-        self.postMessage({
-            type:   'bandResult',
-            band,
-            rt60:   +rtResult.rt60.toFixed(3),
-            snr:    +snr.toFixed(1),
-            method: rtResult.method
-        });
+        // ⑤ 全バンド完了 → result送信
+        self.postMessage({ type: 'result', thirdResults });
 
     } catch (err) {
-        self.postMessage({
-            type: 'bandResult', band, rt60: null, snr: 0,
-            reason: 'Worker内部エラー: ' + err.message
-        });
+        self.postMessage({ type: 'error', message: 'analyzeAll失敗: ' + err.message });
     }
 }
 `;
@@ -1709,9 +1707,9 @@ const MEASUREMENT_CONFIG = {
     // Bluetooth遅延・相互相関に対応した余裕を持った設定
     timing: {
         delay:         1.0,  // Bluetooth安定化待機（0.5→1.0秒）
-        stimulus:      1.5,  // 帯域限定 Log-Sweep 再生
-        recording:     2.5,  // 残響減衰録音（余裕追加 2.0→2.5秒）
-        totalPerBand:  5.0   // 合計: 18バンド × 5.0秒 = 90秒
+        stimulus:      5.0,  // ブロードバンド Log-Sweep 再生（20Hz〜20kHz）
+        recording:     5.0,  // 残響減衰録音（残響時間5秒を確保）
+        totalPerBand:  5.0   // 参照値（単一録音のため実質不使用）
     },
 
     // 解析パラメータ
@@ -1871,57 +1869,36 @@ async function playBeep(ctx, speakerId) {
     osc.disconnect();
     gain.disconnect();
 }
-function generateBandSweep(centerHz, sampleRate, durationSec) {
-    const margin = MEASUREMENT_CONFIG.analysis.bpfMargin;
-    const fLow  = (centerHz / Math.sqrt(2)) * (1 + margin);
-    const fHigh = (centerHz * Math.sqrt(2)) * (1 - margin);
+function generateBroadbandSweep(sampleRate, durationSec) {
+    // ISO 3382-2準拠: 20Hz〜20kHzのフルレンジ対数スイープ
+    // 単一スイープで全バンドをカバーし、deconvolutionは1回のみ
+    const fLow  = 20;
+    const fHigh = 20000;
 
-    // ガードバンド（前150ms + 後100ms）
     const guardPre  = Math.round(0.15 * sampleRate);  // 150ms前ガード
     const guardPost = Math.round(0.10 * sampleRate);  // 100ms後ガード
-    
-    // Sweep本体
+
     const sweepSamples = Math.round(durationSec * sampleRate);
     const k = Math.log(fHigh / fLow) / durationSec;
 
-    // 全体サイズ = 前ガード + Sweep + 後ガード
     const totalSamples = guardPre + sweepSamples + guardPost;
     const sweep = new Float32Array(totalSamples);
-    
-    // 前ガードバンド: 完全な無音
-    for (let i = 0; i < guardPre; i++) {
-        sweep[i] = 0;
-    }
 
-    // Sweep信号生成
     for (let i = 0; i < sweepSamples; i++) {
         const t = i / sampleRate;
         const phase = 2 * Math.PI * fLow * (Math.exp(k * t) - 1) / k;
         sweep[guardPre + i] = Math.sin(phase) * MEASUREMENT_CONFIG.sweepGain;
     }
-    
-    // 後ガードバンド: 完全な無音
-    for (let i = 0; i < guardPost; i++) {
-        sweep[guardPre + sweepSamples + i] = 0;
-    }
 
-    // コサイン窓フェード（Tukey窓）
-    // フェード時間50ms：エネルギー保持97.5%、DC対策十分、ゼロクロス確実
-    const fadeSamples = Math.round(0.05 * sampleRate);  // 50ms（最適値）
-    
+    // Tukey窓フェード（50ms）
+    const fadeSamples = Math.round(0.05 * sampleRate);
     for (let i = 0; i < fadeSamples; i++) {
-        const progress = i / fadeSamples;  // 0 → 1
-        
-        // フェードイン（コサイン窓）: 0 → 1
-        const fadeIn = 0.5 * (1 - Math.cos(Math.PI * progress));
-        sweep[guardPre + i] *= fadeIn;
-        
-        // フェードアウト（コサイン窓）: 1 → 0
-        const fadeOut = 0.5 * (1 + Math.cos(Math.PI * progress));
-        sweep[guardPre + sweepSamples - fadeSamples + i] *= fadeOut;
+        const progress = i / fadeSamples;
+        sweep[guardPre + i] *= 0.5 * (1 - Math.cos(Math.PI * progress));
+        sweep[guardPre + sweepSamples - fadeSamples + i] *= 0.5 * (1 + Math.cos(Math.PI * progress));
     }
 
-    return { sweep, fLow, fHigh };
+    return sweep;
 }
 
 // ─────────────────────────────────────────────────────
@@ -2399,137 +2376,81 @@ async function runMeasurementSequence() {
     });
     console.info('  レイテンシーオフセット送信: ' + systemLatencyOffset + 'サンプル');
 
-    // ── ステージ2: 18バンド逐次測定 ──
-    console.info('=== ' + totalBands + 'バンド測定開始 ===');
-    const bands       = MEASUREMENT_CONFIG.bands;       // 18本
-    const octaveDefs  = MEASUREMENT_CONFIG.octaveBands; // 6グループ
-    const thirdResults = new Array(18).fill(null);       // 1/3oct別RT60
+    // ── ステージ2: ブロードバンド単一スイープ測定 ──
+    // ISO 3382-2準拠: 1回録音 → 1回deconvolution → Worker内で18バンド処理
+    console.info('=== ブロードバンドスイープ測定開始 ===');
 
-    let validOctaveCount   = 0;  // 成功したオクターブバンド数
-    let completedOctaves   = 0;  // 完了したオクターブバンド数
-    let measuredCount      = 0;  // スキップを除く実測バンド数（進捗表示用）
-    for (let bi = 0; bi < bands.length; bi++) {
-        const centerHz = bands[bi];
+    statusEl.textContent = '🔊 スイープ再生・録音中...（約12秒）';
+    statusEl.className = 'status-msg analyzing';
+    document.getElementById('progressLabel').textContent = 'スイープ再生中...';
 
-        // ── プロファイルによるバンドスキップ ──
-        if (snrProfile.skipBands.includes(bi)) {
-            thirdResults[bi] = null;
-            // オクターブ境界チェック（スキップバンドでも境界は処理する）
-            if ((bi + 1) % 3 === 0) {
-                completedOctaves++;
-                // スキップオクターブはvalidOctaveCountを増やさない
-            }
-            continue;
-        }
+    // Bluetooth/デバイス安定化待機
+    await sleep(MEASUREMENT_CONFIG.timing.delay * 1000);
 
-        console.info(`バンド ${bi+1}/18 (実測${measuredCount+1}/${totalBands}): ${centerHz}Hz 開始`);
+    // ブロードバンドスイープ生成（20Hz〜20kHz、5秒）
+    const sweepSignal = generateBroadbandSweep(
+        audioContext.sampleRate,
+        MEASUREMENT_CONFIG.timing.stimulus
+    );
+    console.info('Sweep生成完了: 20Hz-20000Hz, ' + sweepSignal.length + 'サンプル');
 
-        // 進捗UI更新（測定中）
-        updateProgress(measuredCount, centerHz, 'measuring', totalBands);
-        statusEl.textContent = `🔊 ${centerHz}Hz 測定中... [${measuredCount + 1}/${totalBands}]`;
-        statusEl.className = 'status-msg analyzing';
-
-        // delay: Bluetooth/デバイス安定化待機
-        await sleep(MEASUREMENT_CONFIG.timing.delay * 1000);
-
-        // Sweep生成
-        let sweepData;
-        try {
-            sweepData = generateBandSweep(
-                centerHz,
-                audioContext.sampleRate,
-                MEASUREMENT_CONFIG.timing.stimulus
-            );
-            console.info(`  Sweep生成完了: ${sweepData.fLow.toFixed(1)}-${sweepData.fHigh.toFixed(1)}Hz`);
-        } catch (err) {
-            console.error(`❌ ${centerHz}Hz Sweep生成失敗:`, err.message);
-            measuredCount++;
-            updateProgress(measuredCount, centerHz, 'skip', totalBands);
-            thirdResults[bi] = null;
-            if ((bi + 1) % 3 === 0) {
-                completedOctaves++;
-                const octIdx = completedOctaves - 1;
-                const g = octaveDefs[octIdx].indices;
-                const octValid = g.filter(i => thirdResults[i] !== null).length;
-                if (octValid > 0) validOctaveCount++;
-            }
-            continue;
-        }
-
-        // 再生・録音
-        let recorded;
-        try {
-            recorded = await playAndRecord(
-                audioContext, mediaStream, sweepData, centerHz, speakerId
-            );
-        } catch (err) {
-            console.warn(`${centerHz}Hz 録音失敗:`, err.message);
-            measuredCount++;
-            updateProgress(measuredCount, centerHz, 'skip', totalBands);
-            thirdResults[bi] = null;
-            if ((bi + 1) % 3 === 0) {
-                completedOctaves++;
-                const octIdx = completedOctaves - 1;
-                const g = octaveDefs[octIdx].indices;
-                const octValid = g.filter(i => thirdResults[i] !== null).length;
-                if (octValid > 0) validOctaveCount++;
-            }
-            continue;
-        }
-
-        // WorkerにRaw録音データ + Sweep情報を送信して解析
-        console.log(`=== ${centerHz}Hz: Workerへデータ送信 ===`);
-        console.log(`  録音データ: ${recorded.length}サンプル`);
-        console.log(`  Sweepデータ: ${sweepData.sweep.length}サンプル`);
-        
-        const workerResult = await new Promise((resolve) => {
-            measurementWorker.onmessage = (e) => {
-                // デバッグ：全メッセージをログ
-                console.log('=== Worker Message ===', e.data.type);
-                
-                if (e.data.type === 'debug') {
-                    console.log('[Worker] ' + e.data.message);
-                    console.info('[Worker-INFO] ' + e.data.message);
-                    console.warn('[Worker-DEBUG] ' + e.data.message);
-                    return;
-                }
-                if (e.data.type === 'bandResult') {
-                    console.log(`=== ${centerHz}Hz: Worker結果受信 ===`, e.data);
-                    resolve(e.data);
-                }
-            };
-            
-            console.log(`=== ${centerHz}Hz: postMessage実行 ===`);
-            measurementWorker.postMessage({
-                type:     'ANALYZE_BAND',
-                band:     centerHz,
-                recorded: recorded.buffer,
-                sweep:    sweepData.sweep.buffer
-            }, [recorded.buffer, sweepData.sweep.buffer]); // Transferable
-            console.log(`=== ${centerHz}Hz: postMessage完了、結果待機中 ===`);
-        });
-
-        measuredCount++;
-        if (workerResult.type === 'bandResult' && workerResult.rt60 !== null) {
-            thirdResults[bi] = workerResult.rt60;
-            updateProgress(measuredCount, centerHz, 'ok', totalBands);
-        } else {
-            thirdResults[bi] = null;
-            updateProgress(measuredCount, centerHz, 'skip', totalBands);
-            const reason = workerResult.reason || 'SNR不足';
-            console.info(`${centerHz}Hz スキップ: ${reason}`);
-        }
-
-        // ── オクターブバンド境界チェック（3バンド毎） ──
-        if ((bi + 1) % 3 === 0) {
-            completedOctaves++;
-            const octIdx = completedOctaves - 1;
-            const g = octaveDefs[octIdx].indices;
-            const octValid = g.filter(i => thirdResults[i] !== null).length;
-            if (octValid > 0) validOctaveCount++;
-
-        }
+    // 単一録音（スイープ＋残響尾5秒）
+    const sweepDataObj = { sweep: sweepSignal };
+    let recorded;
+    try {
+        recorded = await playAndRecord(
+            audioContext, mediaStream, sweepDataObj, 0, speakerId
+        );
+    } catch (err) {
+        statusEl.textContent = '❌ 録音失敗: ' + err.message;
+        statusEl.className = 'status-msg error';
+        startBtn.disabled = false;
+        progressEl.style.display = 'none';
+        return;
     }
+    console.info('録音完了: ' + recorded.length + 'サンプル (' + (recorded.length/audioContext.sampleRate).toFixed(1) + 's)');
+
+    statusEl.textContent = '🔄 解析中...';
+    statusEl.className = 'status-msg analyzing';
+
+    // Worker に全バンド解析を依頼（bandProgress で進捗受信）
+    const analysisResult = await new Promise((resolve) => {
+        let completedCount = 0;
+        const bands = MEASUREMENT_CONFIG.bands;
+
+        measurementWorker.onmessage = (e) => {
+            if (e.data.type === 'debug') {
+                console.log('[Worker] ' + e.data.message);
+                console.info('[Worker-INFO] ' + e.data.message);
+                return;
+            }
+            if (e.data.type === 'bandProgress') {
+                completedCount++;
+                const { band, index, total } = e.data;
+                updateProgress(completedCount, band, 'measuring', total);
+                statusEl.textContent = `🔄 解析中... ${band}Hz [${completedCount}/${total}]`;
+                return;
+            }
+            if (e.data.type === 'result') {
+                console.info('Worker全バンド解析完了');
+                resolve(e.data);
+            }
+            if (e.data.type === 'error') {
+                console.error('Worker解析エラー:', e.data.message);
+                resolve({ type: 'error', thirdResults: new Array(18).fill(null) });
+            }
+        };
+
+        measurementWorker.postMessage({
+            type:     'ANALYZE_ALL',
+            recorded: recorded.buffer,
+            sweep:    sweepSignal.buffer
+        }, [recorded.buffer, sweepSignal.buffer]);
+
+        console.info('ANALYZE_ALL 送信完了、解析待機中...');
+    });
+
+    const thirdResults = analysisResult.thirdResults;
 
     // ── 録音停止・クリーンアップ ──
     document.getElementById('recordingAlert').classList.remove('active');
