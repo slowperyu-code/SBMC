@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.11): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.12): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -72,7 +72,7 @@
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
         /* ========================================
-           測定進捗バー（Rev 18.11 新規追加）
+           測定進捗バー（Rev 18.12 新規追加）
            ======================================== */
         .measure-progress {
             margin-top: 10px;
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.11): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.12): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -210,7 +210,7 @@
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
         <!-- ========================================
-             測定進捗バー（Rev 18.11 新規追加）
+             測定進捗バー（Rev 18.12 新規追加）
              #measureStatus の直下に配置
              ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
@@ -935,7 +935,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.11 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.12 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1264,9 +1264,12 @@ function calcSNR(ir, bandIndex) {
         if (v > peakVal) { peakVal = v; peakIdx = i; }
     }
 
-    // ピーク後15%をIR帯
-    const irEnd   = Math.min(N, peakIdx + Math.floor(N * 0.15));
-    const irCount = irEnd - peakIdx;
+    // ピーク後2%窓（≒85ms @48kHz）で信号強度を計算
+    // 理由: 15%窓は残響エネルギーを含みSを過小評価する。
+    //       直達音+初期反射のみを捉える短い窓でSNRを正確に推定する。
+    const winSamples = Math.max(10, Math.floor(N * 0.02));
+    const irEnd      = Math.min(N, peakIdx + winSamples);
+    const irCount    = irEnd - peakIdx;
     if (irCount <= 0) return 60;
 
     let irE = 0;
@@ -1296,106 +1299,49 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir) {
+function schroederIntegral(ir, snr) {
     const N = ir.length;
 
-    // ── Lundeby法によるノイズ密度の反復推定 ──
-    // Ref: Lundeby et al. (1995) "Uncertainties of measurements in room acoustics", JASA 97(3)
-    // ISO 3382-2:2008 でも推奨されるアプローチ
+    // ── SNRベース確定的打ち切り ──
+    // noiseDensityのIR末尾推定（Lundeby含む）を廃止。
+    // deconvolutionアーティファクトがIR末尾を底上げするため、
+    // 末尾からの推定は原理的に信頼できない。
+    //
+    // truncDB = -(SNR - margin)
+    //   SNR: calcSNRで計算した信号対雑音比（生マイクノイズ基準）
+    //   margin: 10dB（ノイズフロアに埋もれる前に積分を打ち切る安全マージン）
+    //
+    // 例: SNR=40dB → truncDB=-30dB → T20(-25dB)計算に十分
+    //     SNR=30dB → truncDB=-20dB → T20ギリギリ（マージン5dBに調整も可）
+    const MARGIN_DB  = 10;
+    const truncDB    = -(snr - MARGIN_DB);   // 負値: 例 SNR=40 → truncDB=-30
 
-    // Step 1: 10ms時間窓でRMSエネルギー密度を計算
-    const winLen = Math.max(1, Math.round(_fs * 0.01)); // 10ms窓（最低1サンプル）
-    const nWin   = Math.floor(N / winLen);
-    if (nWin < 5) {
-        // IR長が極端に短い場合のフォールバック（末尾25%）
-        const nStart = Math.floor(N * 0.75);
-        let nE = 0;
-        for (let i = nStart; i < N; i++) nE += ir[i] * ir[i];
-        const noiseDensity = nE / (N - nStart);
-        const cum = new Float64Array(N);
-        cum[N - 1] = ir[N - 1] * ir[N - 1];
-        for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
-        const peak  = cum[0] > 0 ? cum[0] : 1e-20;
-        const edcDB = new Float64Array(N).fill(-999);
-        let truncIdx = N - 1;
-        for (let i = 0; i < N; i++) {
-            if (cum[i] <= noiseDensity * (N - i) * 3.0) { truncIdx = i; break; }
-            edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
-        }
-        return { edcDB, truncIdx };
-    }
-
-    // 各窓のエネルギー密度（1サンプルあたり）
-    const winEnergy = new Float64Array(nWin);
-    for (let w = 0; w < nWin; w++) {
-        let e = 0;
-        for (let i = w * winLen; i < (w + 1) * winLen; i++) e += ir[i] * ir[i];
-        winEnergy[w] = e / winLen;
-    }
-
-    // Step 2: 末尾10%からノイズ密度の初期推定
-    const noiseTailStart = Math.floor(nWin * 0.90);
-    let noiseSum = 0;
-    for (let w = noiseTailStart; w < nWin; w++) noiseSum += winEnergy[w];
-    let noiseDensity = noiseSum / (nWin - noiseTailStart);
-
-    // Step 3: 反復収束（最大5回）
-    // ピーク窓を探す
-    let peakWin = 0;
-    let peakVal = 0;
-    for (let w = 0; w < nWin; w++) {
-        if (winEnergy[w] > peakVal) { peakVal = winEnergy[w]; peakWin = w; }
-    }
-
-    let crossWin = nWin - 1; // EDCがノイズ+10dBを下回る窓インデックス
-    for (let iter = 0; iter < 5; iter++) {
-        // ノイズ密度の10倍（+10dB）を閾値とする
-        const threshold = noiseDensity * 10.0;
-
-        // ピーク窓以降で閾値を下回る最初の窓を探す
-        let newCrossWin = nWin - 1;
-        for (let w = peakWin; w < nWin; w++) {
-            if (winEnergy[w] <= threshold) { newCrossWin = w; break; }
-        }
-        crossWin = newCrossWin;
-
-        // crossWin以降でノイズ密度を再推定
-        const reNoiseStart = Math.min(crossWin + 1, nWin - 1);
-        let reSum = 0;
-        let reCount = nWin - reNoiseStart;
-        if (reCount <= 0) break; // ノイズ区間がない場合は収束とみなす
-        for (let w = reNoiseStart; w < nWin; w++) reSum += winEnergy[w];
-        const newNoiseDensity = reSum / reCount;
-
-        // 収束判定: 変化率1%未満
-        const change = Math.abs(newNoiseDensity - noiseDensity) / (noiseDensity + 1e-30);
-        noiseDensity = newNoiseDensity;
-        if (change < 0.01) break;
-    }
-
-    // truncIdx: crossWin窓のサンプル位置（末端）
-    const truncIdx = Math.min(crossWin * winLen, N - 1);
-
-    // ── 後退積分（Schroeder積分） ──
+    // 後退積分（Schroeder積分）
     const cum = new Float64Array(N);
     cum[N - 1] = ir[N - 1] * ir[N - 1];
     for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
 
-    // dB変換（truncIdxまで）
+    // dB変換 + truncDBで打ち切り
     const peak  = cum[0] > 0 ? cum[0] : 1e-20;
     const edcDB = new Float64Array(N).fill(-999);
-    for (let i = 0; i < truncIdx; i++) {
-        if (cum[i] > 0) edcDB[i] = 10.0 * Math.log10(cum[i] / peak);
+    let truncIdx = N - 1;
+
+    for (let i = 0; i < N; i++) {
+        const db = 10.0 * Math.log10(cum[i] / peak);
+        if (db <= truncDB) {
+            truncIdx = i;
+            break;
+        }
+        edcDB[i] = db;
     }
 
     // 診断ログ
     const truncSec    = (truncIdx / _fs).toFixed(3);
     const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
     self.postMessage({ type: 'debug',
-        message: '[Lundeby] N=' + N + ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
+        message: '[Schroeder] truncIdx=' + truncIdx + '(' + truncSec + 's)' +
                  ' lastValidDB=' + lastValidDB + 'dB' +
-                 ' noiseDensity=' + noiseDensity.toExponential(3) +
-                 ' crossWin=' + crossWin + '/' + nWin
+                 ' truncDB=' + truncDB.toFixed(1) + 'dB (SNR=' + snr.toFixed(1) + 'dB)'
     });
 
     return { edcDB, truncIdx };
@@ -1522,7 +1468,7 @@ function analyzeBand(msg) {
         }
 
         // ⑥ シュレーダー積分
-        const { edcDB, truncIdx } = schroederIntegral(irFiltered);
+        const { edcDB, truncIdx } = schroederIntegral(irFiltered, snr);
 
         // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
@@ -1695,7 +1641,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.11 Stepped Sweep仕様）
+// 測定設定（Rev 18.12 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
