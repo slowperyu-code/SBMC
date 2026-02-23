@@ -1,159 +1,155 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.12): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
+    <meta name="description" content="Soundbox Engine v6.1 (Rev 18.13): Sabine-Eyring Hybrid Professional System with Real-time Measurement">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --primary: #39d353; 
+            --bg: #0d1117; 
+            --card: #161b22; 
+            --text: #e6edf3; 
+            --dim: #8b949e; 
+            --border: #30363d; 
+            --accent: #388bfd; 
+            --danger: #ff7b72; 
+            --warning: #d29922; 
+            --success: #39d353; 
+            --caution: #f0883e;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg); color: var(--text); padding: 15px; margin: 0; font-size: 13px; line-height: 1.4; }
+        .container { max-width: 1000px; min-width: 800px; margin: auto; background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; }
+        .header { border-bottom: 1px solid var(--border); margin-bottom: 20px; padding-bottom: 12px; position: relative; }
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        h2 { color: var(--primary); margin: 0; font-size: 1.4rem; letter-spacing: 0.5px; }
+        .subtitle { font-size: 0.85rem; color: var(--text); margin-top: 5px; font-weight: 500; }
+        .logic-note { position: absolute; bottom: 8px; right: 0; font-size: 0.65rem; color: var(--dim); font-style: italic; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn-base { border: none; padding: 7px 16px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; transition: opacity 0.2s; text-decoration: none; }
+        .btn-print { background: var(--border); color: var(--text); border: 1px solid var(--border); }
+        .btn-estimate { background: var(--accent); color: white; }
+        .btn-base:hover { opacity: 0.8; }
+        .section-title { font-size: 0.8rem; font-weight: bold; color: var(--accent); margin: 20px 0 10px 0; border-left: 3px solid var(--accent); padding-left: 8px; }
+        input, select, .custom-select-trigger { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0 10px; border-radius: 4px; width: 100%; box-sizing: border-box; font-size: 0.75rem; height: 36px; line-height: 34px; display: flex; align-items: center; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+        .grid-row { display: grid; grid-template-columns: 2fr 3.5fr 0.8fr 0.8fr 1fr; gap: 8px; margin-bottom: 8px; align-items: end; }
+        label { font-size: 0.65rem; color: var(--dim); margin-bottom: 4px; display: block; }
+        .custom-select-container { position: relative; width: 100%; }
+        .custom-select-trigger { cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--border); }
+        .sub-panel { display: none; position: absolute; top: 100%; left: 0; width: 540px; background: #1c2128; border: 1px solid var(--accent); border-radius: 8px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); padding: 15px; margin-top: 5px; }
+        .sub-panel.active { display: block; }
+        .panel-cols { display: grid; grid-template-columns: 1.4fr 0.8fr 1.2fr; gap: 12px; }
+        .col-title { font-size: 0.6rem; color: var(--accent); margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        .col-item { padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-bottom: 3px; font-size: 0.7rem; color: var(--text); }
+        .col-item:hover { background: var(--border); }
+        .col-item.selected { background: var(--accent); color: white; font-weight: bold; }
+        .res-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+        .res-card { background: var(--bg); padding: 15px; border-radius: 10px; border: 2px solid var(--border); text-align: center; }
+        .res-val { font-size: 1.6rem; font-weight: bold; font-family: "Roboto Mono", monospace; }
+        .chart-wrapper { position: relative; height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.2); }
+        .footer-note { margin-top: 20px; padding: 18px; background: rgba(56, 139, 253, 0.05); border-radius: 8px; border: 1px solid var(--border); }
+        .advice-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 8px; font-size: 0.7rem; color: #000; }
+        #print-only-notice { display: none; margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.75rem; line-height: 1.6; color: #333; }
+        .mode-switcher { display: flex; background: var(--bg); padding: 4px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .mode-btn { flex: 1; padding: 10px; border: none; background: transparent; color: var(--dim); cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; font-size: 0.75rem; }
+        .mode-btn.active { background: var(--accent); color: white; }
+        .mode-btn.active.measure { background: var(--warning); color: #000; }
+        .calc-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.6rem; font-weight: bold; margin-left: 5px; background: var(--accent); color: white; }
+        .measurement-panel { background: rgba(56, 139, 253, 0.05); border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .measure-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+        .status-msg { font-size: 0.75rem; margin-top: 10px; font-weight: 500; min-height: 1.2em; padding: 8px; border-radius: 4px; text-align: center; }
+        .status-msg.ready { color: var(--dim); }
+        .status-msg.calibrating { background: rgba(210, 153, 34, 0.1); color: var(--warning); }
+        .status-msg.analyzing { background: rgba(56, 139, 253, 0.1); color: var(--accent); }
+        .status-msg.success { background: rgba(57, 211, 83, 0.1); color: var(--success); }
+        .status-msg.warning { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
+        .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
 
-```
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-    :root { 
-        --primary: #39d353; 
-        --bg: #0d1117; 
-        --card: #161b22; 
-        --text: #e6edf3; 
-        --dim: #8b949e; 
-        --border: #30363d; 
-        --accent: #388bfd; 
-        --danger: #ff7b72; 
-        --warning: #d29922; 
-        --success: #39d353; 
-        --caution: #f0883e;
-    }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background-color: var(--bg); color: var(--text); padding: 15px; margin: 0; font-size: 13px; line-height: 1.4; }
-    .container { max-width: 1000px; min-width: 800px; margin: auto; background: var(--card); padding: 25px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative; }
-    .header { border-bottom: 1px solid var(--border); margin-bottom: 20px; padding-bottom: 12px; position: relative; }
-    .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    h2 { color: var(--primary); margin: 0; font-size: 1.4rem; letter-spacing: 0.5px; }
-    .subtitle { font-size: 0.85rem; color: var(--text); margin-top: 5px; font-weight: 500; }
-    .logic-note { position: absolute; bottom: 8px; right: 0; font-size: 0.65rem; color: var(--dim); font-style: italic; }
-    .btn-group { display: flex; gap: 10px; }
-    .btn-base { border: none; padding: 7px 16px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: bold; transition: opacity 0.2s; text-decoration: none; }
-    .btn-print { background: var(--border); color: var(--text); border: 1px solid var(--border); }
-    .btn-estimate { background: var(--accent); color: white; }
-    .btn-base:hover { opacity: 0.8; }
-    .section-title { font-size: 0.8rem; font-weight: bold; color: var(--accent); margin: 20px 0 10px 0; border-left: 3px solid var(--accent); padding-left: 8px; }
-    input, select, .custom-select-trigger { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0 10px; border-radius: 4px; width: 100%; box-sizing: border-box; font-size: 0.75rem; height: 36px; line-height: 34px; display: flex; align-items: center; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
-    .grid-row { display: grid; grid-template-columns: 2fr 3.5fr 0.8fr 0.8fr 1fr; gap: 8px; margin-bottom: 8px; align-items: end; }
-    label { font-size: 0.65rem; color: var(--dim); margin-bottom: 4px; display: block; }
-    .custom-select-container { position: relative; width: 100%; }
-    .custom-select-trigger { cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--border); }
-    .sub-panel { display: none; position: absolute; top: 100%; left: 0; width: 540px; background: #1c2128; border: 1px solid var(--accent); border-radius: 8px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.8); padding: 15px; margin-top: 5px; }
-    .sub-panel.active { display: block; }
-    .panel-cols { display: grid; grid-template-columns: 1.4fr 0.8fr 1.2fr; gap: 12px; }
-    .col-title { font-size: 0.6rem; color: var(--accent); margin-bottom: 8px; font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-    .col-item { padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-bottom: 3px; font-size: 0.7rem; color: var(--text); }
-    .col-item:hover { background: var(--border); }
-    .col-item.selected { background: var(--accent); color: white; font-weight: bold; }
-    .res-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
-    .res-card { background: var(--bg); padding: 15px; border-radius: 10px; border: 2px solid var(--border); text-align: center; }
-    .res-val { font-size: 1.6rem; font-weight: bold; font-family: "Roboto Mono", monospace; }
-    .chart-wrapper { position: relative; height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.2); }
-    .footer-note { margin-top: 20px; padding: 18px; background: rgba(56, 139, 253, 0.05); border-radius: 8px; border: 1px solid var(--border); }
-    .advice-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 8px; font-size: 0.7rem; color: #000; }
-    #print-only-notice { display: none; margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.75rem; line-height: 1.6; color: #333; }
-    .mode-switcher { display: flex; background: var(--bg); padding: 4px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
-    .mode-btn { flex: 1; padding: 10px; border: none; background: transparent; color: var(--dim); cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; font-size: 0.75rem; }
-    .mode-btn.active { background: var(--accent); color: white; }
-    .mode-btn.active.measure { background: var(--warning); color: #000; }
-    .calc-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.6rem; font-weight: bold; margin-left: 5px; background: var(--accent); color: white; }
-    .measurement-panel { background: rgba(56, 139, 253, 0.05); border: 1px solid var(--accent); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-    .measure-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
-    .status-msg { font-size: 0.75rem; margin-top: 10px; font-weight: 500; min-height: 1.2em; padding: 8px; border-radius: 4px; text-align: center; }
-    .status-msg.ready { color: var(--dim); }
-    .status-msg.calibrating { background: rgba(210, 153, 34, 0.1); color: var(--warning); }
-    .status-msg.analyzing { background: rgba(56, 139, 253, 0.1); color: var(--accent); }
-    .status-msg.success { background: rgba(57, 211, 83, 0.1); color: var(--success); }
-    .status-msg.warning { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
-    .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
+        /* ========================================
+           測定進捗バー（Rev 18.13 新規追加）
+           ======================================== */
+        .measure-progress {
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .measure-progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .measure-progress-label {
+            font-size: 0.72rem;
+            color: var(--text);
+            font-weight: 500;
+        }
+        .measure-progress-count {
+            font-size: 0.65rem;
+            color: var(--dim);
+            font-family: "Roboto Mono", monospace;
+        }
+        .measure-progress-bar-track {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .measure-progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+        .measure-progress-time {
+            font-size: 0.65rem;
+            color: var(--dim);
+            margin-top: 5px;
+            text-align: right;
+        }
+        /* ======================================== */
 
-    /* ========================================
-       測定進捗バー（Rev 18.12 新規追加）
-       ======================================== */
-    .measure-progress {
-        margin-top: 10px;
-        padding: 10px 12px;
-        background: rgba(0,0,0,0.2);
-        border-radius: 6px;
-        border: 1px solid var(--border);
-    }
-    .measure-progress-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-    }
-    .measure-progress-label {
-        font-size: 0.72rem;
-        color: var(--text);
-        font-weight: 500;
-    }
-    .measure-progress-count {
-        font-size: 0.65rem;
-        color: var(--dim);
-        font-family: "Roboto Mono", monospace;
-    }
-    .measure-progress-bar-track {
-        width: 100%;
-        height: 8px;
-        background: var(--border);
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .measure-progress-bar-fill {
-        height: 100%;
-        width: 0%;
-        background: var(--accent);
-        border-radius: 4px;
-        transition: width 0.4s ease;
-    }
-    .measure-progress-time {
-        font-size: 0.65rem;
-        color: var(--dim);
-        margin-top: 5px;
-        text-align: right;
-    }
-    /* ======================================== */
+        .recording-flash { display: none; background: rgba(255, 123, 114, 0.1); border: 2px solid var(--danger); border-radius: 8px; padding: 15px; margin-top: 10px; text-align: center; }
+        .recording-flash.active { display: block; animation: flash-border 1s infinite; }
+        .flash-icon { font-size: 2rem; animation: blink 1s infinite; }
+        .flash-text { font-size: 0.9rem; font-weight: bold; color: var(--danger); margin-top: 8px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes flash-border { 0%, 100% { border-color: var(--danger); } 50% { border-color: rgba(255, 123, 114, 0.3); } }
+        .snr-indicator { margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; }
+        .snr-bar { position: relative; width: 100%; height: 20px; background: var(--border); border-radius: 10px; overflow: hidden; margin-top: 5px; }
+        .snr-value { height: 100%; background: linear-gradient(90deg, var(--danger), var(--warning), var(--success)); transition: width 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.7rem; font-weight: bold; color: white; }
+        .warning-box { background: rgba(255, 123, 114, 0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 0.75rem; }
+        .warning-box.warning-yellow { background: rgba(210, 153, 34, 0.15); border: 1px solid var(--warning); }
+        .warning-box button { margin-top: 8px; padding: 6px 12px; background: var(--danger); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+        .warning-box.warning-yellow button { background: var(--warning); }
+        .warning-box button:hover { opacity: 0.8; }
+        #warning-reason { margin-top: 5px; font-size: 0.7rem; color: var(--dim); }
 
-    .recording-flash { display: none; background: rgba(255, 123, 114, 0.1); border: 2px solid var(--danger); border-radius: 8px; padding: 15px; margin-top: 10px; text-align: center; }
-    .recording-flash.active { display: block; animation: flash-border 1s infinite; }
-    .flash-icon { font-size: 2rem; animation: blink 1s infinite; }
-    .flash-text { font-size: 0.9rem; font-weight: bold; color: var(--danger); margin-top: 8px; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    @keyframes flash-border { 0%, 100% { border-color: var(--danger); } 50% { border-color: rgba(255, 123, 114, 0.3); } }
-    .snr-indicator { margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 6px; }
-    .snr-bar { position: relative; width: 100%; height: 20px; background: var(--border); border-radius: 10px; overflow: hidden; margin-top: 5px; }
-    .snr-value { height: 100%; background: linear-gradient(90deg, var(--danger), var(--warning), var(--success)); transition: width 0.3s; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.7rem; font-weight: bold; color: white; }
-    .warning-box { background: rgba(255, 123, 114, 0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 0.75rem; }
-    .warning-box.warning-yellow { background: rgba(210, 153, 34, 0.15); border: 1px solid var(--warning); }
-    .warning-box button { margin-top: 8px; padding: 6px 12px; background: var(--danger); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
-    .warning-box.warning-yellow button { background: var(--warning); }
-    .warning-box button:hover { opacity: 0.8; }
-    #warning-reason { margin-top: 5px; font-size: 0.7rem; color: var(--dim); }
-
-    @media print {
-        @page { size: A4; margin: 15mm; }
-        body { background: white !important; color: black !important; padding: 0; }
-        .container { box-shadow: none !important; border: none !important; width: 100% !important; max-width: none !important; min-width: 0 !important; background: white !important; padding: 0 !important; }
-        .no-print, .logic-note, .mode-switcher, .measurement-panel { display: none !important; }
-        .header { border-bottom: 2pt solid black !important; }
-        h2, .section-title, .res-val, .subtitle { color: black !important; }
-        input, select, .custom-select-trigger { border: none !important; background: transparent !important; color: black !important; padding: 0 !important; height: auto !important; appearance: none; }
-        .grid-row { border-bottom: 0.5pt solid #eee; padding-bottom: 5px; }
-        .res-card { border: 1pt solid black !important; background: white !important; }
-        .chart-wrapper { border: 1pt solid #ccc !important; background: white !important; height: 300px !important; }
-        .footer-note { border: 1pt solid #ccc !important; background: #f9f9f9 !important; color: black !important; }
-        #print-only-notice { display: block !important; border: none !important; }
-    }
-</style>
-```
-
+        @media print {
+            @page { size: A4; margin: 15mm; }
+            body { background: white !important; color: black !important; padding: 0; }
+            .container { box-shadow: none !important; border: none !important; width: 100% !important; max-width: none !important; min-width: 0 !important; background: white !important; padding: 0 !important; }
+            .no-print, .logic-note, .mode-switcher, .measurement-panel { display: none !important; }
+            .header { border-bottom: 2pt solid black !important; }
+            h2, .section-title, .res-val, .subtitle { color: black !important; }
+            input, select, .custom-select-trigger { border: none !important; background: transparent !important; color: black !important; padding: 0 !important; height: auto !important; appearance: none; }
+            .grid-row { border-bottom: 0.5pt solid #eee; padding-bottom: 5px; }
+            .res-card { border: 1pt solid black !important; background: white !important; }
+            .chart-wrapper { border: 1pt solid #ccc !important; background: white !important; height: 300px !important; }
+            .footer-note { border: 1pt solid #ccc !important; background: #f9f9f9 !important; color: black !important; }
+            #print-only-notice { display: block !important; border: none !important; }
+        }
+    </style>
 </head>
 <body>
 <div class="container">
@@ -165,180 +161,177 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.12): Sabine-Eyring Hybrid System with Real-time Measurement</div>
+        <div class="subtitle">Soundbox Engine v6.1 (Rev 18.13): Sabine-Eyring Hybrid System with Real-time Measurement</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
-```
-<div class="mode-switcher no-print">
-    <button class="mode-btn active" id="btnSim" onclick="setMode('sim')">設計シミュレーション (Sabine)</button>
-    <button class="mode-btn" id="btnMeasure" onclick="setMode('measure')">実測値ベース改善 (Eyring)</button>
-</div>
-
-<div id="measurementPanel" class="measurement-panel no-print" style="display:none;">
-    <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-bottom:12px;">
-        🎤 PRO 測定モード (Eyring Method / Log-Sweep Analysis)
+    <div class="mode-switcher no-print">
+        <button class="mode-btn active" id="btnSim" onclick="setMode('sim')">設計シミュレーション (Sabine)</button>
+        <button class="mode-btn" id="btnMeasure" onclick="setMode('measure')">実測値ベース改善 (Eyring)</button>
     </div>
-    
-    <div class="measure-controls">
-        <div>
-            <label>入力デバイス (マイク)</label>
-            <select id="micSelect">
-                <option value="">デバイスを選択...</option>
-            </select>
-        </div>
-        <div>
-            <label>出力デバイス (スピーカー)</label>
-            <select id="spkSelect">
-                <option value="">デバイスを選択...</option>
-            </select>
+
+    <div id="measurementPanel" class="measurement-panel no-print" style="display:none;">
+        <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-bottom:12px;">
+            🎤 PRO 測定モード (Eyring Method / Log-Sweep Analysis)
         </div>
         
-        <!-- SNRプロファイル選択 -->
-        <div style="margin-top: 12px;">
-            <label>測定精度プロファイル</label>
-            <select id="snrProfile" onchange="updateSNRProfileInfo()">
-                <option value="low">低（内蔵デバイス向け）</option>
-                <option value="medium" selected>中（推奨・Bluetooth）</option>
-                <option value="high">高（ISO準拠）</option>
-            </select>
-            <small id="snrProfileInfo" style="display:block; margin-top:4px; color:var(--dim); font-size:0.7rem;">
-                一般的な音響測定に適しています
-            </small>
+        <div class="measure-controls">
+            <div>
+                <label>入力デバイス (マイク)</label>
+                <select id="micSelect">
+                    <option value="">デバイスを選択...</option>
+                </select>
+            </div>
+            <div>
+                <label>出力デバイス (スピーカー)</label>
+                <select id="spkSelect">
+                    <option value="">デバイスを選択...</option>
+                </select>
+            </div>
+            
+            <!-- SNRプロファイル選択 -->
+            <div style="margin-top: 12px;">
+                <label>測定精度プロファイル</label>
+                <select id="snrProfile" onchange="updateSNRProfileInfo()">
+                    <option value="low">低（内蔵デバイス向け）</option>
+                    <option value="medium" selected>中（推奨・Bluetooth）</option>
+                    <option value="high">高（ISO準拠）</option>
+                </select>
+                <small id="snrProfileInfo" style="display:block; margin-top:4px; color:var(--dim); font-size:0.7rem;">
+                    一般的な音響測定に適しています
+                </small>
+            </div>
+            
+            <button class="btn-base btn-estimate" id="startMeasBtn" onclick="runMeasurementSequence()">
+                測定開始
+            </button>
         </div>
         
-        <button class="btn-base btn-estimate" id="startMeasBtn" onclick="runMeasurementSequence()">
-            測定開始
-        </button>
-    </div>
-    
-    <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
+        <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
 
-    <!-- ========================================
-         測定進捗バー（Rev 18.12 新規追加）
-         #measureStatus の直下に配置
-         ======================================== -->
-    <div id="measureProgress" class="measure-progress" style="display:none;">
-        <div class="measure-progress-header">
-            <span id="progressLabel" class="measure-progress-label">準備中...</span>
-            <span id="progressCount" class="measure-progress-count">0 / 18</span>
+        <!-- ========================================
+             測定進捗バー（Rev 18.13 新規追加）
+             #measureStatus の直下に配置
+             ======================================== -->
+        <div id="measureProgress" class="measure-progress" style="display:none;">
+            <div class="measure-progress-header">
+                <span id="progressLabel" class="measure-progress-label">準備中...</span>
+                <span id="progressCount" class="measure-progress-count">0 / 18</span>
+            </div>
+            <div class="measure-progress-bar-track">
+                <div id="progressBar" class="measure-progress-bar-fill"></div>
+            </div>
+            <div id="progressTime" class="measure-progress-time">残り約 93 秒</div>
         </div>
-        <div class="measure-progress-bar-track">
-            <div id="progressBar" class="measure-progress-bar-fill"></div>
+        <!-- ======================================== -->
+        
+        <div id="snrIndicator" class="snr-indicator" style="display:none;">
+            <label style="font-size:0.7rem; color:var(--dim);">信号対雑音比 (S/N Ratio)</label>
+            <div class="snr-bar">
+                <div id="snrValue" class="snr-value" style="width:0%;"></div>
+            </div>
         </div>
-        <div id="progressTime" class="measure-progress-time">残り約 93 秒</div>
-    </div>
-    <!-- ======================================== -->
-    
-    <div id="snrIndicator" class="snr-indicator" style="display:none;">
-        <label style="font-size:0.7rem; color:var(--dim);">信号対雑音比 (S/N Ratio)</label>
-        <div class="snr-bar">
-            <div id="snrValue" class="snr-value" style="width:0%;"></div>
+        
+        <div id="recordingAlert" class="recording-flash">
+            <div class="flash-icon">🔴</div>
+            <div class="flash-text">📢 測定中です - 静かにしてください</div>
         </div>
-    </div>
-    
-    <div id="recordingAlert" class="recording-flash">
-        <div class="flash-icon">🔴</div>
-        <div class="flash-text">📢 測定中です - 静かにしてください</div>
-    </div>
-    
-    <div id="remeasureWarning" class="warning-box" style="display:none;">
-        <strong>⚠️ データ品質が不足しています</strong>
-        <div id="warningReason"></div>
-        <button onclick="runMeasurementSequence()">再測定を実行</button>
-    </div>
-    
-    <div id="manualInputPanel" style="display:none; margin-top:15px; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px;">
-        <label style="font-size:0.7rem; color:var(--warning); font-weight:bold;">
-            手動入力モード（測定値を直接入力）
-        </label>
-        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px;">
-            <div><label>125Hz</label><input type="number" id="m125" value="0.80" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
-            <div><label>250Hz</label><input type="number" id="m250" value="0.70" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
-            <div><label>500Hz</label><input type="number" id="m500" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
-            <div><label>1kHz</label><input type="number" id="m1k" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
-            <div><label>2kHz</label><input type="number" id="m2k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
-            <div><label>4kHz</label><input type="number" id="m4k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+        
+        <div id="remeasureWarning" class="warning-box" style="display:none;">
+            <strong>⚠️ データ品質が不足しています</strong>
+            <div id="warningReason"></div>
+            <button onclick="runMeasurementSequence()">再測定を実行</button>
         </div>
-        <div style="font-size:0.65rem; color:var(--dim); margin-top:8px;">
-            ※ 自動測定が利用できない場合、外部測定器で取得した残響時間を入力してください
+        
+        <div id="manualInputPanel" style="display:none; margin-top:15px; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px;">
+            <label style="font-size:0.7rem; color:var(--warning); font-weight:bold;">
+                手動入力モード（測定値を直接入力）
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px;">
+                <div><label>125Hz</label><input type="number" id="m125" value="0.80" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+                <div><label>250Hz</label><input type="number" id="m250" value="0.70" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+                <div><label>500Hz</label><input type="number" id="m500" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+                <div><label>1kHz</label><input type="number" id="m1k" value="0.60" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+                <div><label>2kHz</label><input type="number" id="m2k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+                <div><label>4kHz</label><input type="number" id="m4k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
+            </div>
+            <div style="font-size:0.65rem; color:var(--dim); margin-top:8px;">
+                ※ 自動測定が利用できない場合、外部測定器で取得した残響時間を入力してください
+            </div>
         </div>
     </div>
-</div>
 
-<div class="section-title">1. 基本環境設定</div>
-<div class="grid-3">
-    <div>
-        <label>利用目的 (目標値)</label>
-        <select id="appTarget"></select>
-    </div>
-    <div>
-        <label>部屋サイズ W / D / H [m]</label>
-        <div style="display:flex; gap:4px;">
-            <input type="number" id="w" value="4.0" step="0.1">
-            <input type="number" id="d" value="6.0" step="0.1">
-            <input type="number" id="h" value="2.6" step="0.1">
+    <div class="section-title">1. 基本環境設定</div>
+    <div class="grid-3">
+        <div>
+            <label>利用目的 (目標値)</label>
+            <select id="appTarget"></select>
+        </div>
+        <div>
+            <label>部屋サイズ W / D / H [m]</label>
+            <div style="display:flex; gap:4px;">
+                <input type="number" id="w" value="4.0" step="0.1">
+                <input type="number" id="d" value="6.0" step="0.1">
+                <input type="number" id="h" value="2.6" step="0.1">
+            </div>
+        </div>
+        <div>
+            <label>壁面仕上げ (ベース)</label>
+            <select id="baseWall"></select>
         </div>
     </div>
-    <div>
-        <label>壁面仕上げ (ベース)</label>
-        <select id="baseWall"></select>
-    </div>
-</div>
-<div class="grid-3">
-    <div><label>天井仕上げ</label><select id="baseCeiling"></select></div>
-    <div><label>床仕上げ</label><select id="baseFloor"></select></div>
-    <div style="display:flex; align-items:flex-end; padding-bottom:5px;">
-        <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px;">
-        <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">開口部(窓等)を考慮する</label>
-    </div>
-</div>
-
-<div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">
-    <div class="grid-3" style="grid-template-columns: 2fr 1fr 1fr;">
-        <div><label>追加素材</label><select id="exMat"></select></div>
-        <div><label>面積 [㎡]</label><input type="number" id="exArea" value="2.0" step="0.1"></div>
-    </div>
-</div>
-
-<div class="section-title">2. 製品セレクション</div>
-<div id="sbInputs"></div>
-
-<div class="res-panel">
-    <div class="res-card">
-        <label style="font-size:0.6rem">平均残響時間 (500Hz-1kHz)</label>
-        <div id="postRT_Avg" class="res-val">-</div>
-        <div id="targetLabel" style="font-size:0.6rem; color:var(--dim)">目標: -</div>
-        <div id="calcMethod" style="font-size:0.55rem; color:var(--dim); margin-top:3px;">
-            <span class="calc-badge" id="methodBadge">SABINE</span>
+    <div class="grid-3">
+        <div><label>天井仕上げ</label><select id="baseCeiling"></select></div>
+        <div><label>床仕上げ</label><select id="baseFloor"></select></div>
+        <div style="display:flex; align-items:flex-end; padding-bottom:5px;">
+            <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px;">
+            <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">開口部(窓等)を考慮する</label>
         </div>
     </div>
-    <div class="res-card" id="cardHealth">
-        <label style="font-size:0.6rem">実用性評価</label>
-        <div id="achievementRate" class="res-val">-</div>
-        <div id="healthStatus" style="font-size:0.65rem; font-weight:bold;">-</div>
+
+    <div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">
+        <div class="grid-3" style="grid-template-columns: 2fr 1fr 1fr;">
+            <div><label>追加素材</label><select id="exMat"></select></div>
+            <div><label>面積 [㎡]</label><input type="number" id="exArea" value="2.0" step="0.1"></div>
+        </div>
     </div>
-    <div class="res-card">
-        <label style="font-size:0.6rem">導入面積 / 拡散寄与度</label>
-        <div id="totalPanelArea" class="res-val" style="font-size:1.1rem;">-</div>
-        <div id="diffusionBalance" style="font-size:0.65rem; color:var(--primary)">-</div>
+
+    <div class="section-title">2. 製品セレクション</div>
+    <div id="sbInputs"></div>
+
+    <div class="res-panel">
+        <div class="res-card">
+            <label style="font-size:0.6rem">平均残響時間 (500Hz-1kHz)</label>
+            <div id="postRT_Avg" class="res-val">-</div>
+            <div id="targetLabel" style="font-size:0.6rem; color:var(--dim)">目標: -</div>
+            <div id="calcMethod" style="font-size:0.55rem; color:var(--dim); margin-top:3px;">
+                <span class="calc-badge" id="methodBadge">SABINE</span>
+            </div>
+        </div>
+        <div class="res-card" id="cardHealth">
+            <label style="font-size:0.6rem">実用性評価</label>
+            <div id="achievementRate" class="res-val">-</div>
+            <div id="healthStatus" style="font-size:0.65rem; font-weight:bold;">-</div>
+        </div>
+        <div class="res-card">
+            <label style="font-size:0.6rem">導入面積 / 拡散寄与度</label>
+            <div id="totalPanelArea" class="res-val" style="font-size:1.1rem;">-</div>
+            <div id="diffusionBalance" style="font-size:0.65rem; color:var(--primary)">-</div>
+        </div>
     </div>
-</div>
 
-<div class="chart-wrapper"><canvas id="rtChart"></canvas></div>
+    <div class="chart-wrapper"><canvas id="rtChart"></canvas></div>
 
-<div class="footer-note">
-    <div id="adviceHeader" class="advice-tag"></div>
-    <div id="detailedNote" style="font-size:0.75rem;"></div>
-</div>
+    <div class="footer-note">
+        <div id="adviceHeader" class="advice-tag"></div>
+        <div id="detailedNote" style="font-size:0.75rem;"></div>
+    </div>
 
-<div id="print-only-notice">
-    <strong>【ご案内】</strong><br>
-    本シミュレーション結果は、入力された条件下におけるセービン式に基づいた計算目安であり、実際の施工現場の環境（家具の配置、下地の構造、温湿度等）により変動する場合があります。<br>
-    より高度な詳細解析や、パネルの具体的な配置計画（反射音分布の最適化など）をご希望の場合は、<strong>AFMG EASE</strong> によるシミュレーション、または弊社専門スタッフまでお問い合わせください。
-</div>
-```
-
+    <div id="print-only-notice">
+        <strong>【ご案内】</strong><br>
+        本シミュレーション結果は、入力された条件下におけるセービン式に基づいた計算目安であり、実際の施工現場の環境（家具の配置、下地の構造、温湿度等）により変動する場合があります。<br>
+        より高度な詳細解析や、パネルの具体的な配置計画（反射音分布の最適化など）をご希望の場合は、<strong>AFMG EASE</strong> によるシミュレーション、または弊社専門スタッフまでお問い合わせください。
+    </div>
 </div>
 
 <script>
@@ -942,7 +935,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.12 Part 4）
+// Web Worker: 1/3オクターブ帯域解析エンジン（Rev 18.13 Part 4）
 // 処理フロー: IR抽出 → BPF → SNR → シュレーダー積分 → RT計算
 // ========================================
 const workerCode = `
@@ -1297,8 +1290,9 @@ function calcSNR(ir, bandIndex) {
         noiseRMS = Math.sqrt(nE / nCount);
     }
 
-    if (noiseRMS < 1e-20) return 60;
-    return 20.0 * Math.log10(irRMS / noiseRMS);
+    if (noiseRMS < 1e-20) return { snr: 60, peakIdx: 0 };
+    const snr = 20.0 * Math.log10(irRMS / noiseRMS);
+    return { snr, peakIdx };
 }
 
 /* ─────────────────────────────────────────────
@@ -1306,34 +1300,29 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir, snr) {
+function schroederIntegral(ir, snr, peakIdx) {
     const N = ir.length;
 
     // ── SNRベース確定的打ち切り ──
-    // noiseDensityのIR末尾推定（Lundeby含む）を廃止。
-    // deconvolutionアーティファクトがIR末尾を底上げするため、
-    // 末尾からの推定は原理的に信頼できない。
-    //
     // truncDB = -(SNR - margin)
-    //   SNR: calcSNRで計算した信号対雑音比（生マイクノイズ基準）
-    //   margin: 10dB（ノイズフロアに埋もれる前に積分を打ち切る安全マージン）
-    //
-    // 例: SNR=40dB → truncDB=-30dB → T20(-25dB)計算に十分
-    //     SNR=30dB → truncDB=-20dB → T20ギリギリ（マージン5dBに調整も可）
-    const MARGIN_DB  = 10;
-    const truncDB    = -(snr - MARGIN_DB);   // 負値: 例 SNR=40 → truncDB=-30
+    // margin=10dB: ノイズに埋もれる前に積分を打ち切る安全マージン
+    const MARGIN_DB = 10;
+    const truncDB   = -(snr - MARGIN_DB);
 
-    // 後退積分（Schroeder積分）
+    // ── 後退積分（Schroeder積分）──
+    // peakIdx以降のみ積分。peakIdx前のノイズを分母から排除することで
+    // EDC 0dBを直達音ピーク位置に正しく合わせる。
     const cum = new Float64Array(N);
     cum[N - 1] = ir[N - 1] * ir[N - 1];
     for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
 
-    // dB変換 + truncDBで打ち切り
-    const peak  = cum[0] > 0 ? cum[0] : 1e-20;
+    // 正規化基準: cum[peakIdx]（直達音到達時点のエネルギー）
+    const peak  = cum[peakIdx] > 0 ? cum[peakIdx] : 1e-20;
     const edcDB = new Float64Array(N).fill(-999);
     let truncIdx = N - 1;
 
-    for (let i = 0; i < N; i++) {
+    // EDC走査はpeakIdxから開始
+    for (let i = peakIdx; i < N; i++) {
         const db = 10.0 * Math.log10(cum[i] / peak);
         if (db <= truncDB) {
             truncIdx = i;
@@ -1343,10 +1332,12 @@ function schroederIntegral(ir, snr) {
     }
 
     // 診断ログ
+    const peakSec     = (peakIdx / _fs).toFixed(3);
     const truncSec    = (truncIdx / _fs).toFixed(3);
     const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
     self.postMessage({ type: 'debug',
-        message: '[Schroeder] truncIdx=' + truncIdx + '(' + truncSec + 's)' +
+        message: '[Schroeder] peakIdx=' + peakIdx + '(' + peakSec + 's)' +
+                 ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
                  ' lastValidDB=' + lastValidDB + 'dB' +
                  ' truncDB=' + truncDB.toFixed(1) + 'dB (SNR=' + snr.toFixed(1) + 'dB)'
     });
@@ -1461,7 +1452,7 @@ function analyzeBand(msg) {
 
         // ⑤ SNR判定（キャリブレーション結果を優先利用）
         console.log('### Worker: Calculating SNR...');
-        const snr = calcSNR(irFiltered, bandIndex);
+        const { snr, peakIdx } = calcSNR(irFiltered, bandIndex);
         console.log('### Worker: SNR =', snr.toFixed(1), 'dB, threshold =', minSnr, 'dB');
         
         if (snr < minSnr) {
@@ -1475,7 +1466,7 @@ function analyzeBand(msg) {
         }
 
         // ⑥ シュレーダー積分
-        const { edcDB, truncIdx } = schroederIntegral(irFiltered, snr);
+        const { edcDB, truncIdx } = schroederIntegral(irFiltered, snr, peakIdx);
 
         // ⑦ RT計算
         const rtResult = calcRT(edcDB, truncIdx, fs);
@@ -1648,7 +1639,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.12 Stepped Sweep仕様）
+// 測定設定（Rev 18.13 Stepped Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
