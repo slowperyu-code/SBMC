@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.2 (Rev 18.15): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.2 (Rev 18.16): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -161,7 +161,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.2 (Rev 18.15): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v6.2 (Rev 18.16): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -1352,7 +1352,7 @@ function schroederIntegral(ir, snr, peakIdx) {
                  ' truncDB=' + truncDB.toFixed(1) + 'dB (SNR=' + snr.toFixed(1) + 'dB)'
     });
 
-    return { edcDB, truncIdx };
+    return { edcDB, truncIdx, peakIdx };
 }
 
 /* ─────────────────────────────────────────────
@@ -1360,14 +1360,14 @@ function schroederIntegral(ir, snr, peakIdx) {
    T60→T30→T20 フォールバック
    ISO 3382-2:2008 準拠
 ───────────────────────────────────────────── */
-function calcRT(edcDB, truncIdx, fs) {
+function calcRT(edcDB, truncIdx, peakIdx, fs) {
     // 物理的妥当性の上下限
     // 上限5.0s: 小〜中規模室内でこれを超える値は背景ノイズ誤認
     // 下限0.05s: 50ms未満は測定ノイズ由来の誤検出
     const RT_MAX = 5.0;
     const RT_MIN = 0.05;
     // R²下限: 0.9未満は直線性が低く回帰結果が信頼できない
-    const R2_MIN = 0.9;
+    const R2_MIN = 0.75; // ISO 3382-2に0.9の規定なし。実測EDCは初期反射等で完全直線にならない
 
     function validate(result, method) {
         if (!result) return null;
@@ -1388,18 +1388,18 @@ function calcRT(edcDB, truncIdx, fs) {
     }
 
     // T60: -5dB → -65dB
-    const v60 = validate(lsqRT(edcDB, truncIdx, fs, -5, -65), 'T60');
+    const v60 = validate(lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -65), 'T60');
     if (v60) return v60;
 
     // T30: -5dB → -35dB → ×2外挿
-    const r30 = lsqRT(edcDB, truncIdx, fs, -5, -35);
+    const r30 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -35);
     if (r30) {
         const v30 = validate({ rt: r30.rt * 2.0, r2: r30.r2 }, 'T30');
         if (v30) return v30;
     }
 
     // T20: -5dB → -25dB → ×3外挿
-    const r20 = lsqRT(edcDB, truncIdx, fs, -5, -25);
+    const r20 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -25);
     if (r20) {
         const v20 = validate({ rt: r20.rt * 3.0, r2: r20.r2 }, 'T20');
         if (v20) return v20;
@@ -1408,9 +1408,12 @@ function calcRT(edcDB, truncIdx, fs) {
     return null;
 }
 
-function lsqRT(edcDB, truncIdx, fs, startDB, endDB) {
+function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB) {
+    // ループを peakIdx 起点にする
+    // peakIdx 以前の edcDB は -999（未計算）のため、0から走査すると
+    // -999 <= -5 が真になり s=0, e=1 が即確定してしまい全バンド失敗する
     let s = -1, e = -1;
-    for (let i = 0; i < truncIdx; i++) {
+    for (let i = peakIdx; i < truncIdx; i++) {
         if (s < 0 && edcDB[i] <= startDB) { s = i; continue; }
         if (s >= 0 && edcDB[i] <= endDB)  { e = i; break; }
     }
@@ -1523,7 +1526,7 @@ function analyzeBand(msg) {
         const { edcDB, truncIdx } = schroederIntegral(irFiltered, snr, peakIdx);
 
         // ⑦ RT計算
-        const rtResult = calcRT(edcDB, truncIdx, fs);
+        const rtResult = calcRT(edcDB, truncIdx, peakIdx, fs);
         if (!rtResult) {
             self.postMessage({
                 type: 'bandResult', band, rt60: null,
