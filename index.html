@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.3 (Rev 18.17): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.3 (Rev 18.18): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1104,48 +1104,59 @@ function findSweepStart(recorded, sweep) {
         return Math.floor(0.5 * fs);
     }
     
-    // Check length: first 0.2s of sweep
-    const checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
-    
+    // ブロードバンドスイープ（duration > 2s）: 2.5s地点（約630Hz）から0.3s窓で相関
+    // 理由: 先頭20Hzは録音側の低域ロールオフでエネルギーが低く、相関が取れない
+    // バンド限定スイープ（duration <= 2s）: 従来通り先頭0.2s
+    const sweepDuration = sweep.length / fs;
+    let checkStart, checkLength;
+    if (sweepDuration > 2.0) {
+        checkStart  = Math.round(0.15 * fs) + Math.round(2.5 * fs); // guardPre + 2.5s
+        checkLength = Math.min(Math.round(0.3 * fs), sweep.length - checkStart);
+    } else {
+        checkStart  = 0;
+        checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
+    }
+
     // Step 1: Coarse scan (100-sample steps)
     let maxCorr = -Infinity;
     let bestOffset = searchStart;
-    
-    for (let offset = searchStart; offset < searchEnd; offset += 100) {
+    const searchEndAdj = Math.min(searchEnd, recorded.length - checkStart - checkLength);
+
+    for (let offset = searchStart; offset < searchEndAdj; offset += 100) {
         let corr = 0;
         for (let i = 0; i < checkLength; i++) {
-            corr += recorded[offset + i] * sweep[i];
+            corr += recorded[offset + checkStart + i] * sweep[checkStart + i];
         }
         if (corr > maxCorr) {
             maxCorr = corr;
             bestOffset = offset;
         }
     }
-    
+
     // Step 2: Fine adjustment (1-sample steps within ±100 range)
     const fineStart = Math.max(searchStart, bestOffset - 100);
-    const fineEnd = Math.min(searchEnd, bestOffset + 100);
+    const fineEnd   = Math.min(searchEndAdj, bestOffset + 100);
     maxCorr = -Infinity;
-    
+
     for (let offset = fineStart; offset < fineEnd; offset++) {
         let corr = 0;
         for (let i = 0; i < checkLength; i++) {
-            corr += recorded[offset + i] * sweep[i];
+            corr += recorded[offset + checkStart + i] * sweep[checkStart + i];
         }
         if (corr > maxCorr) {
             maxCorr = corr;
             bestOffset = offset;
         }
     }
-    
+
     // Step 3: Calculate correlation confidence (normalized)
     let recEnergy = 0;
     let swpEnergy = 0;
     for (let i = 0; i < checkLength; i++) {
-        recEnergy += recorded[bestOffset + i] * recorded[bestOffset + i];
-        swpEnergy += sweep[i] * sweep[i];
+        recEnergy += recorded[bestOffset + checkStart + i] * recorded[bestOffset + checkStart + i];
+        swpEnergy += sweep[checkStart + i] * sweep[checkStart + i];
     }
-    
+
     const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * swpEnergy) + 1e-10);
     
     // Debug log
@@ -1197,6 +1208,72 @@ function extractIR(recorded, sweep) {
 
     // 実部のみ（インパルス応答）を録音長で切り取って返却
     return new Float64Array(hRe.buffer, 0, recorded.length);
+}
+
+/* ─────────────────────────────────────────────
+   Farina法 インパルス応答抽出
+   参考: Farina (2000) "Simultaneous measurement of impulse response
+         and distortion with a swept-sine technique"
+   逆フィルタ = 時間反転スイープ × exp(-n·ln(f2/f1)/N)
+   FFT乗算（除算ではない）により平坦スペクトルIRを得る
+   ─────────────────────────────────────────────── */
+function extractIRFarina(recorded, sweep, fLow, fHigh, durationSec) {
+    const fs       = _fs;
+    const guardPre = Math.round(0.15 * fs);
+    const N_sweep  = Math.round(durationSec * fs);
+    const k        = Math.log(fHigh / fLow); // ln(f2/f1)
+
+    // ── Farina逆フィルタ生成 ──
+    // inv[n] = sweep[guardPre + N_sweep - 1 - n] × exp(-n·k/N_sweep)
+    // 長さ: N_sweep（ガードバンドを含まない）
+    const inv = new Float64Array(N_sweep);
+    for (let n = 0; n < N_sweep; n++) {
+        const srcIdx = guardPre + (N_sweep - 1 - n);
+        const val    = srcIdx < sweep.length ? sweep[srcIdx] : 0;
+        inv[n]       = val * Math.exp(-n * k / N_sweep);
+    }
+
+    // ── FFT乗算（時間領域たたみ込み）──
+    // H(ω) = Y(ω) × INV(ω)  ← 除算ではなく乗算
+    const N = nextPow2(recorded.length + N_sweep);
+    const yRe = new Float64Array(N);
+    const xRe = new Float64Array(N);
+    const yIm = new Float64Array(N);
+    const xIm = new Float64Array(N);
+
+    for (let i = 0; i < recorded.length; i++) yRe[i] = recorded[i];
+    for (let i = 0; i < N_sweep; i++)         xRe[i] = inv[i];
+
+    fft(yRe, yIm);
+    fft(xRe, xIm);
+
+    const hRe = new Float64Array(N);
+    const hIm = new Float64Array(N);
+    for (let i = 0; i < N; i++) {
+        hRe[i] = yRe[i]*xRe[i] - yIm[i]*xIm[i]; // 複素乗算
+        hIm[i] = yRe[i]*xIm[i] + yIm[i]*xRe[i];
+    }
+
+    ifft(hRe, hIm);
+
+    // ── IR切り出し ──
+    // 直達音ピーク位置: guardPre + N_sweep - 1
+    // 50ms前バッファを設けてcalcSNRのピーク探索範囲（先頭0.1s）内に収める
+    const preBuf    = Math.round(0.05 * fs);
+    const peakOff   = guardPre + N_sweep - 1;
+    const startIdx  = Math.max(0, peakOff - preBuf);
+    const irLength  = Math.min(N - startIdx, recorded.length);
+
+    const ir = new Float64Array(irLength);
+    for (let i = 0; i < irLength; i++) ir[i] = hRe[startIdx + i];
+
+    self.postMessage({ type: 'debug',
+        message: '[Farina] peakOff=' + peakOff + '(' + (peakOff/fs).toFixed(3) + 's)' +
+                 ' startIdx=' + startIdx + ' irLength=' + irLength +
+                 ' (' + (irLength/fs).toFixed(2) + 's)'
+    });
+
+    return ir;
 }
 
 /* ─────────────────────────────────────────────
@@ -1309,43 +1386,28 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir, snr, peakIdx, noiseRMS) {
+function schroederIntegral(ir, snr, peakIdx) {
+    // ISO 3382-2準拠の単純後退積分
+    // ノイズ補正は行わない（Farina法で十分なSNRが確保される前提）
+    // 打ち切り閾値（SNR - 10dB）でノイズフロア前に積分を終了
     const N = ir.length;
 
-    // ── 後退積分（Schroeder積分）──
+    // ── 後退積分 ──
     const cum = new Float64Array(N);
     cum[N - 1] = ir[N - 1] * ir[N - 1];
     for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
 
-    // ── ISO 3382-2 Annex A ノイズ補正 ──
-    // noiseRMS はdeconvolution後の同一IR末尾から推定した値。
-    // _noiseFloor（生マイクRMS）はdeconv前後で特性が異なるため使用しない。
-    const noiseVariance = noiseRMS * noiseRMS;
-    const corrected = new Float64Array(N);
-    for (let i = 0; i < N; i++) {
-        corrected[i] = cum[i] - noiseVariance * (N - i);
-    }
+    // 正規化基準: cum[peakIdx]
+    const peak = cum[peakIdx] > 0 ? cum[peakIdx] : 1e-20;
 
-    // 補正後の基準値チェック（過剰補正検出）
-    if (corrected[peakIdx] <= 0) {
-        self.postMessage({ type: 'debug',
-            message: '[Schroeder] ISO補正失敗: corrected[peakIdx]=' +
-                     corrected[peakIdx].toExponential(3) + ' <= 0 → null返却'
-        });
-        return null;
-    }
-
-    // 打ち切り閾値（SNRベース）
     const MARGIN_DB = 10;
     const truncDB   = -(snr - MARGIN_DB);
 
-    const peak  = corrected[peakIdx];
-    const edcDB = new Float64Array(N).fill(-999);
+    const edcDB  = new Float64Array(N).fill(-999);
     let truncIdx = N - 1;
 
     for (let i = peakIdx; i < N; i++) {
-        if (corrected[i] <= 0) { truncIdx = i; break; }
-        const db = 10.0 * Math.log10(corrected[i] / peak);
+        const db = 10.0 * Math.log10(cum[i] / peak);
         if (db <= truncDB) { truncIdx = i; break; }
         edcDB[i] = db;
     }
@@ -1358,7 +1420,7 @@ function schroederIntegral(ir, snr, peakIdx, noiseRMS) {
         message: '[Schroeder] peakIdx=' + peakIdx + '(' + peakSec + 's)' +
                  ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
                  ' lastValidDB=' + lastValidDB + 'dB' +
-                 ' truncDB=' + truncDB.toFixed(1) + 'dB (SNR=' + snr.toFixed(1) + 'dB)'
+                 ' SNR=' + snr.toFixed(1) + 'dB truncDB=' + truncDB.toFixed(1) + 'dB'
     });
 
     return { edcDB, truncIdx, peakIdx };
@@ -1463,8 +1525,8 @@ function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB) {
 ───────────────────────────────────────────── */
 function analyzeAll(msg) {
     // ── 単一ブロードバンドスイープからの全バンド解析 ──
-    // ISO 3382-2準拠: 1回のdeconvolution → 全バンド共通IR → BPF×18
-    const { recorded, sweep } = msg;
+    // ISO 3382-2準拠: Farina法1回のdeconvolution → 全バンド共通IR → BPF×18
+    const { recorded, sweep, fLow, fHigh, durationSec } = msg;
     const fs       = _fs;
     const minSnr   = (_cfg && _cfg.analysis) ? _cfg.analysis.minSnr   : 15.0;
     const bpfOrder = (_cfg && _cfg.analysis) ? _cfg.analysis.bpfOrder :  6;
@@ -1487,13 +1549,10 @@ function analyzeAll(msg) {
         const endPos       = Math.min(sweepStart + requiredLen, recF32.length);
         const trimmed      = recF32.slice(sweepStart, endPos);
 
-        // Sweep信号を同じ長さにゼロパディング
-        const swpAdjusted = new Float32Array(trimmed.length);
-        swpAdjusted.set(swpF32, 0);
-
-        // ③ 単一deconvolution → 全バンド共通IR
-        const ir = extractIR(trimmed, swpAdjusted);
-        self.postMessage({ type: 'debug', message: 'extractIR done: ir.length=' + ir.length });
+        // ③ Farina法deconvolution → 全バンド共通IR
+        // extractIRFarina: 時間反転スイープ×exp重み付けの逆フィルタをFFT乗算
+        const ir = extractIRFarina(trimmed, sweep, fLow, fHigh, durationSec);
+        self.postMessage({ type: 'debug', message: 'extractIRFarina done: ir.length=' + ir.length });
 
         // ④ 各バンドでBPF → SNR → Schroeder（ISO補正）→ calcRT
         const thirdResults = new Array(bands.length).fill(null);
@@ -1508,8 +1567,9 @@ function analyzeAll(msg) {
             const sections   = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
             const irFiltered = applyBiquadCascade(ir, sections);
 
-            // SNR計算（IR末尾ノイズRMSも取得）
-            const { snr, peakIdx, noiseRMS } = calcSNR(irFiltered, bi);
+            // SNR計算（bandIndex=-1 → IR末尾75%からノイズ推定を強制）
+            // _noiseFloor（生マイクRMS）はFarina IR振幅スケールと異なるため使用しない
+            const { snr, peakIdx, noiseRMS } = calcSNR(irFiltered, -1);
 
             self.postMessage({ type: 'debug',
                 message: band + 'Hz: SNR=' + snr.toFixed(1) + 'dB peakIdx=' + peakIdx +
@@ -1521,8 +1581,8 @@ function analyzeAll(msg) {
                 continue;
             }
 
-            // Schroeder積分（ISO 3382-2 Annex A ノイズ補正）
-            const schResult = schroederIntegral(irFiltered, snr, peakIdx, noiseRMS);
+            // Schroeder積分（単純後退積分、Farina法でSNR確保）
+            const schResult = schroederIntegral(irFiltered, snr, peakIdx);
             if (!schResult) {
                 self.postMessage({ type: 'debug', message: band + 'Hz: Schroeder補正失敗 → skip' });
                 continue;
@@ -1898,7 +1958,7 @@ function generateBroadbandSweep(sampleRate, durationSec) {
         sweep[guardPre + sweepSamples - fadeSamples + i] *= 0.5 * (1 + Math.cos(Math.PI * progress));
     }
 
-    return sweep;
+    return { sweep, fLow, fHigh, durationSec: durationSec };
 }
 
 // ─────────────────────────────────────────────────────
@@ -2234,13 +2294,13 @@ async function runMeasurementSequence() {
     // プロファイル取得（ループ全体で使用）
     const snrProfile    = SNR_PROFILES[currentSNRProfile];
     const totalBands    = snrProfile.totalBands;
-    const initTimeSec   = Math.round(totalBands * MEASUREMENT_CONFIG.timing.totalPerBand) + 3;
+    const initTimeSec   = 20; // sweep(5s) + recording(5s) + analysis(~3s) + overhead
 
     // 進捗バー初期化
     progressEl.style.display = 'block';
     document.getElementById('progressBar').style.width = '0%';
     document.getElementById('progressCount').textContent = '0 / ' + totalBands;
-    document.getElementById('progressTime').textContent = '残り約 ' + initTimeSec + ' 秒';
+    document.getElementById('progressTime').textContent = '残り約 ' + initTimeSec + ' 秒（ブロードバンド一括測定）';
     document.getElementById('progressLabel').textContent = '準備中...';
 
     // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
@@ -2388,29 +2448,50 @@ async function runMeasurementSequence() {
     await sleep(MEASUREMENT_CONFIG.timing.delay * 1000);
 
     // ブロードバンドスイープ生成（20Hz〜20kHz、5秒）
-    const sweepSignal = generateBroadbandSweep(
+    const sweepResult = generateBroadbandSweep(
         audioContext.sampleRate,
         MEASUREMENT_CONFIG.timing.stimulus
     );
-    console.info('Sweep生成完了: 20Hz-20000Hz, ' + sweepSignal.length + 'サンプル');
+    const { sweep: sweepSignal, fLow: sweepFLow, fHigh: sweepFHigh, durationSec: sweepDuration } = sweepResult;
+    console.info('Sweep生成完了: ' + sweepFLow + 'Hz-' + sweepFHigh + 'Hz, ' + sweepSignal.length + 'サンプル');
 
     // 単一録音（スイープ＋残響尾5秒）
     const sweepDataObj = { sweep: sweepSignal };
+
+    // フェーズ1: 録音中の時間ベース進捗（0→50%）
+    const recordingTotalMs = (MEASUREMENT_CONFIG.timing.stimulus + MEASUREMENT_CONFIG.timing.recording + 1.5) * 1000;
+    const recStart = Date.now();
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressCount').textContent = '録音中...';
+    document.getElementById('progressLabel').textContent = '🔊 スイープ再生・残響録音中';
+
+    const recProgressTimer = setInterval(() => {
+        const elapsed = Date.now() - recStart;
+        const pct = Math.min(Math.round(elapsed / recordingTotalMs * 50), 49);
+        const remaining = Math.max(0, Math.ceil((recordingTotalMs - elapsed) / 1000));
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressTime').textContent = '残り約 ' + remaining + ' 秒';
+    }, 300);
+
     let recorded;
     try {
         recorded = await playAndRecord(
             audioContext, mediaStream, sweepDataObj, 0, speakerId
         );
     } catch (err) {
+        clearInterval(recProgressTimer);
         statusEl.textContent = '❌ 録音失敗: ' + err.message;
         statusEl.className = 'status-msg error';
         startBtn.disabled = false;
         progressEl.style.display = 'none';
         return;
     }
+    clearInterval(recProgressTimer);
+    document.getElementById('progressBar').style.width = '50%';
+    document.getElementById('progressCount').textContent = '録音完了';
     console.info('録音完了: ' + recorded.length + 'サンプル (' + (recorded.length/audioContext.sampleRate).toFixed(1) + 's)');
 
-    statusEl.textContent = '🔄 解析中...';
+    statusEl.textContent = '🔄 Farina法デコンボリューション・解析中...';
     statusEl.className = 'status-msg analyzing';
 
     // Worker に全バンド解析を依頼（bandProgress で進捗受信）
@@ -2427,8 +2508,13 @@ async function runMeasurementSequence() {
             if (e.data.type === 'bandProgress') {
                 completedCount++;
                 const { band, index, total } = e.data;
-                updateProgress(completedCount, band, 'measuring', total);
-                statusEl.textContent = `🔄 解析中... ${band}Hz [${completedCount}/${total}]`;
+                // フェーズ2: 解析進捗（50%→100%）
+                const analysisPct = Math.round((completedCount / total) * 50);
+                document.getElementById('progressBar').style.width = (50 + analysisPct) + '%';
+                document.getElementById('progressCount').textContent = '解析: ' + completedCount + ' / ' + total + ' バンド';
+                document.getElementById('progressTime').textContent = '';
+                document.getElementById('progressLabel').textContent = '🔄 ' + band + 'Hz 解析中...';
+                statusEl.textContent = '🔄 Farina法解析中... ' + band + 'Hz [' + completedCount + '/' + total + ']';
                 return;
             }
             if (e.data.type === 'result') {
@@ -2442,9 +2528,12 @@ async function runMeasurementSequence() {
         };
 
         measurementWorker.postMessage({
-            type:     'ANALYZE_ALL',
-            recorded: recorded.buffer,
-            sweep:    sweepSignal.buffer
+            type:        'ANALYZE_ALL',
+            recorded:    recorded.buffer,
+            sweep:       sweepSignal.buffer,
+            fLow:        sweepFLow,
+            fHigh:       sweepFHigh,
+            durationSec: sweepDuration
         }, [recorded.buffer, sweepSignal.buffer]);
 
         console.info('ANALYZE_ALL 送信完了、解析待機中...');
