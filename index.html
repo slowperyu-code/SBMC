@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.4 (Rev 18.20): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.5 (Rev 18.21): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -160,7 +160,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.4 (Rev 18.20): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v6.5 (Rev 18.21): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -967,7 +967,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: ブロードバンド解析エンジン（Rev 18.20）
+// Web Worker: ブロードバンド解析エンジン（Rev 18.21）
 // 処理フロー: Farina deconv → BPF×18 → SNR → Schroeder → RT計算
 // ========================================
 const workerCode = `
@@ -1409,40 +1409,87 @@ function calcSNR(ir, bandIndex) {
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
 function schroederIntegral(ir, snr, peakIdx) {
-    // ISO 3382-2準拠の単純後退積分
-    // ノイズ補正は行わない（Farina法で十分なSNRが確保される前提）
-    // 打ち切り閾値（SNR - 10dB）でノイズフロア前に積分を終了
-    const N = ir.length;
+    // ISO 3382-2 Annex A準拠: Lundeby法によるノイズ交点検出 + ノイズ補正後退積分
+    // 参考: Lundeby et al. (1995) JASA 98(6), ISO 3382-2:2008 Annex A
+    //
+    // 処理フロー:
+    //   1. IR末尾10%からノイズ分散(noisePower)を推定
+    //   2. 後退積分 cum[i] = Σ ir[k]² (k=i→N-1)
+    //   3. Lundeby交点: cum[i] ≈ noisePower×(N-i) を満たす最初の点
+    //   4. Annex A補正: corrected[i] = cum[i] - noisePower×(N-i)
+    //   5. corrected[i]≤0 になった点で積分終了 → EDC生成
+    const N  = ir.length;
+    const fs = _fs;
 
-    // ── 後退積分 ──
+    // ── Step 1: IR末尾10%からノイズ分散を推定 ──
+    // Farina IRのノイズフロアは残響消滅後（末尾）に純粋に現れる
+    const noiseStart = Math.floor(N * 0.90);
+    let noiseSum = 0;
+    for (let i = noiseStart; i < N; i++) noiseSum += ir[i] * ir[i];
+    const noisePower = noiseSum / (N - noiseStart); // 分散 [power/sample]
+
+    // noisePowerが異常に小さい場合（完全無音IR等）は計算不能
+    if (noisePower < 1e-30) {
+        self.postMessage({ type: 'debug',
+            message: '[Schroeder] noisePower < 1e-30 → 測定不能'
+        });
+        return null;
+    }
+
+    // ── Step 2: 後退積分 ──
     const cum = new Float64Array(N);
     cum[N - 1] = ir[N - 1] * ir[N - 1];
     for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
 
-    // 正規化基準: cum[peakIdx]
-    const peak = cum[peakIdx] > 0 ? cum[peakIdx] : 1e-20;
+    // ── Step 3: Lundeby交点検出 ──
+    // cum[i] <= noisePower * (N - i) を満たす最初のインデックス
+    // = 「残りの積分がすべてノイズエネルギーで説明できる点」
+    let lundebyIdx = N - 1;
+    for (let i = peakIdx; i < N; i++) {
+        if (cum[i] <= noisePower * (N - i)) {
+            lundebyIdx = i;
+            break;
+        }
+    }
 
-    const MARGIN_DB = 10;
-    const truncDB   = -(snr - MARGIN_DB);
+    // ── Step 4: Annex A補正 + EDC生成 ──
+    // corrected[i] = cum[i] - noisePower * (N - i)
+    // corrected[peakIdx] > 0 が必須（信号がノイズより十分大きい）
+    const corrPeak = cum[peakIdx] - noisePower * (N - peakIdx);
+    if (corrPeak <= 0) {
+        self.postMessage({ type: 'debug',
+            message: '[Schroeder] Annex A補正失敗: corrected[peakIdx]=' +
+                     corrPeak.toExponential(3) + ' <= 0 → 信号がノイズに埋没'
+        });
+        return null;
+    }
 
     const edcDB  = new Float64Array(N).fill(-999);
-    let truncIdx = N - 1;
+    let truncIdx = lundebyIdx; // Lundeby交点を初期打ち切り点とする
 
-    for (let i = peakIdx; i < N; i++) {
-        const db = 10.0 * Math.log10(cum[i] / peak);
-        if (db <= truncDB) { truncIdx = i; break; }
-        edcDB[i] = db;
+    for (let i = peakIdx; i <= lundebyIdx; i++) {
+        const corrected = cum[i] - noisePower * (N - i);
+        if (corrected <= 0) {
+            // 補正後に負になった = ノイズが信号を超えた点
+            truncIdx = i;
+            break;
+        }
+        edcDB[i] = 10.0 * Math.log10(corrected / corrPeak);
     }
 
     // 診断ログ
-    const peakSec     = (peakIdx / _fs).toFixed(3);
-    const truncSec    = (truncIdx / _fs).toFixed(3);
+    const noisedB     = 10 * Math.log10(noisePower / corrPeak);
+    const peakSec     = (peakIdx    / fs).toFixed(3);
+    const lundbySec   = (lundebyIdx / fs).toFixed(3);
+    const truncSec    = (truncIdx   / fs).toFixed(3);
     const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
     self.postMessage({ type: 'debug',
-        message: '[Schroeder] peakIdx=' + peakIdx + '(' + peakSec + 's)' +
+        message: '[Schroeder/Lundeby] peakIdx=' + peakIdx + '(' + peakSec + 's)' +
+                 ' lundebyIdx=' + lundebyIdx + '(' + lundbySec + 's)' +
                  ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
-                 ' lastValidDB=' + lastValidDB + 'dB' +
-                 ' SNR=' + snr.toFixed(1) + 'dB truncDB=' + truncDB.toFixed(1) + 'dB'
+                 ' noisePower=' + noisePower.toExponential(3) +
+                 ' noiseLevel=' + noisedB.toFixed(1) + 'dB' +
+                 ' lastValidDB=' + lastValidDB + 'dB'
     });
 
     return { edcDB, truncIdx, peakIdx };
@@ -1458,9 +1505,11 @@ function calcRT(edcDB, truncIdx, peakIdx, fs) {
     // 上限5.0s: 小〜中規模室内でこれを超える値は背景ノイズ誤認
     // 下限0.05s: 50ms未満は測定ノイズ由来の誤検出
     const RT_MAX = 5.0;
-    const RT_MIN = 0.05;
-    // R²下限: 0.9未満は直線性が低く回帰結果が信頼できない
-    const R2_MIN = 0.75; // ISO 3382-2に0.9の規定なし。実測EDCは初期反射等で完全直線にならない
+    // RT_MIN = 0.03s: BT積基準(B×T>16)より1kHz以上では30ms以上が有効
+    // 極端に短い場合(30-50ms)は表示しつつ精度注意を促す
+    const RT_MIN = 0.03;
+    // R²_MIN = 0.80: Lundeby補正後EDCは直線性が向上するため0.75→0.80に引き上げ
+    const R2_MIN = 0.80;
 
     function validate(result, method) {
         if (!result) return null;
@@ -1799,7 +1848,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.20 Broadband Sweep仕様）
+// 測定設定（Rev 18.21 Broadband Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
