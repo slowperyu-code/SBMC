@@ -2,10 +2,13 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.7 (Rev 18.23): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.9 (Rev 18.25): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -50,6 +53,11 @@
         .col-item:hover { background: var(--border); }
         .col-item.selected { background: var(--accent); color: white; font-weight: bold; }
         .res-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+        @media (max-width: 640px) {
+            .res-panel { gap: 6px; }
+            .res-card { padding: 8px 6px; }
+            .res-val { font-size: 1.1rem; }
+        }
         .res-card { background: var(--bg); padding: 15px; border-radius: 10px; border: 2px solid var(--border); text-align: center; }
         .res-val { font-size: 1.6rem; font-weight: bold; font-family: "Roboto Mono", monospace; }
         .chart-wrapper { position: relative; height: 320px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: rgba(0,0,0,0.2); }
@@ -160,7 +168,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.7 (Rev 18.23): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v6.9 (Rev 18.25): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -301,6 +309,7 @@
         <div class="res-card">
             <label style="font-size:0.6rem">平均残響時間 (500Hz-1kHz)</label>
             <div id="postRT_Avg" class="res-val">-</div>
+            <div id="measuredBandInfo" style="font-size:0.58rem; color:var(--dim); margin-top:2px; min-height:0.9em;"></div>
             <div id="targetLabel" style="font-size:0.6rem; color:var(--dim)">目標: -</div>
             <div id="calcMethod" style="font-size:0.55rem; color:var(--dim); margin-top:3px;">
                 <span class="calc-badge" id="methodBadge">SABINE</span>
@@ -917,14 +926,20 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
     const has1k  = measurementData && measurementData[3] !== null;
     const coreAvailable = currentMode !== 'measure' || (has500 || has1k);
     let avgLabel;
+    let bandInfoLabel = '';
     if (!coreAvailable) {
         avgLabel = 'N/A';
+        bandInfoLabel = '';
     } else if (measuredBandCount !== null) {
-        avgLabel = avgAfter.toFixed(2) + 's  (Measured: ' + measuredBandCount + '/6)';
+        avgLabel = avgAfter.toFixed(2) + 's';
+        bandInfoLabel = 'Measured: ' + measuredBandCount + ' / 6';
     } else {
         avgLabel = avgAfter.toFixed(2) + 's';
+        bandInfoLabel = '';
     }
     document.getElementById('postRT_Avg').textContent = avgLabel;
+    const _bandInfoEl = document.getElementById('measuredBandInfo');
+    if (_bandInfoEl) _bandInfoEl.textContent = bandInfoLabel;
     document.getElementById('targetLabel').textContent = `目標: ${targetRT}s`;
     document.getElementById('achievementRate').textContent = achievementRate.toFixed(0) + '%';
     document.getElementById('totalPanelArea').textContent = `${totalPanelM2.toFixed(1)} / ${usableSurface.toFixed(1)}㎡`;
@@ -974,7 +989,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: ブロードバンド解析エンジン（Rev 18.23）
+// Web Worker: ブロードバンド解析エンジン（Rev 18.25）
 // 処理フロー: Farina deconv → BPF×18 → SNR → Schroeder → RT計算
 // ========================================
 const workerCode = `
@@ -1655,6 +1670,7 @@ function analyzeAll(msg) {
         // ④ 各バンドでBPF → SNR → Schroeder（ISO補正）→ calcRT
         const thirdResults  = new Array(bands.length).fill(null);
         const methodResults = new Array(bands.length).fill(null);
+        const r2Results     = new Array(bands.length).fill(null);
 
         for (let bi = 0; bi < bands.length; bi++) {
             const band = bands[bi];
@@ -1697,13 +1713,14 @@ function analyzeAll(msg) {
 
             thirdResults[bi]  = +rtResult.rt60.toFixed(3);
             methodResults[bi] = rtResult.method;
+            r2Results[bi]     = +rtResult.r2.toFixed(3);
             self.postMessage({ type: 'debug',
                 message: band + 'Hz: RT60=' + thirdResults[bi] + 's (' + rtResult.method + ', R²=' + rtResult.r2.toFixed(3) + ')'
             });
         }
 
         // ⑤ 全バンド完了 → result送信
-        self.postMessage({ type: 'result', thirdResults, methodResults });
+        self.postMessage({ type: 'result', thirdResults, methodResults, r2Results });
 
     } catch (err) {
         self.postMessage({ type: 'error', message: 'analyzeAll失敗: ' + err.message });
@@ -1780,6 +1797,8 @@ function handleMeasurementResult(data) {
 
     // ── methodResults を受け取る ──
     const methodResults = data.methodResults || new Array(18).fill(null);
+    window._r2Results = data.r2Results || new Array(18).fill(null);
+    window._methodResultsAll = data.methodResults || new Array(18).fill(null);
 
     // ── 500Hz(index2) + 1kHz(index3) 両方欠損 → 音響評価として失敗 ──
     const miss500  = octaveResults[2] === null;
@@ -1824,6 +1843,14 @@ function handleMeasurementResult(data) {
         }
     }
     window._measurementMethod = lowestMethod;
+
+    // バッジ即時更新（switchMode()を待たずにresult受信時点で反映）
+    const _badge = document.getElementById('methodBadge');
+    if (_badge) {
+        const _methodColors = { 'T60': 'var(--success)', 'T30': 'var(--warning)', 'T20': 'var(--caution)' };
+        _badge.textContent = lowestMethod;
+        _badge.style.background = _methodColors[lowestMethod] || 'var(--warning)';
+    }
 
     saveRoomSizeToBuffer();
     disableRoomSizeInputs();
@@ -1875,7 +1902,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.23 Broadband Sweep仕様）
+// 測定設定（Rev 18.25 Broadband Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
@@ -2780,7 +2807,20 @@ function updateChart(rt_before, rt_after, targetRT) {
                 x: { grid: { color: '#30363d', lineWidth: 1 }, ticks: { color: '#8b949e', font: { size: 11 } } }
             },
             plugins: {
-                legend: { display: true, position: 'top', labels: { color: '#e6edf3', font: { size: 11 }, padding: 15, usePointStyle: true } },
+                legend: {
+                    display: true, position: 'top',
+                    labels: {
+                        color: '#e6edf3', font: { size: 11 }, padding: 15,
+                        usePointStyle: true,
+                        generateLabels: function(chart) {
+                            // 凡例アイコンは常に●固定（データ点の×とは独立）
+                            const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                            orig.forEach(item => { item.pointStyle = 'circle'; });
+                            return orig;
+                        }
+                    },
+                    // N/A注記をグラフ下に追加するためのafterFitは不要（ツールチップで補完）
+                },
                 tooltip: {
                     backgroundColor: 'rgba(22, 27, 34, 0.95)', titleColor: '#e6edf3',
                     bodyColor: '#e6edf3', borderColor: '#30363d', borderWidth: 1, padding: 10,
@@ -2789,7 +2829,17 @@ function updateChart(rt_before, rt_after, targetRT) {
                             if (ctx.datasetIndex === 2) return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + 's';
                             const raw = ctx.datasetIndex === 0 ? rt_before[ctx.dataIndex] : rt_after[ctx.dataIndex];
                             if (raw === null) return ctx.dataset.label + ': N/A（測定不可）';
-                            return ctx.dataset.label + ': ' + raw.toFixed(2) + 's';
+                            // バンドインデックスはFREQS配列のインデックスと対応
+                            const bi = ctx.dataIndex;
+                            const method = window._measurementMethod && window._r2Results ? '' : '';
+                            const r2 = (window._r2Results && window._r2Results[bi] != null)
+                                ? window._r2Results[bi] : null;
+                            const meth = (window._methodResultsAll && window._methodResultsAll[bi])
+                                ? window._methodResultsAll[bi] : null;
+                            let suffix = '';
+                            if (meth && r2 != null) suffix = ' (' + meth + ', R²=' + r2.toFixed(2) + ')';
+                            else if (meth) suffix = ' (' + meth + ')';
+                            return ctx.dataset.label + ': ' + raw.toFixed(2) + 's' + suffix;
                         }
                     }
                 }
