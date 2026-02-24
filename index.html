@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.5 (Rev 18.21): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.6 (Rev 18.22): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -160,7 +160,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.5 (Rev 18.21): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v6.6 (Rev 18.22): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -835,9 +835,16 @@ function calculate() {
         
         // Before値の決定
         let rt_b;
-        if (currentMode === 'measure' && measurementData && measurementData[i]) {
-            // 測定モード：測定値を使用
-            rt_b = measurementData[i];
+        if (currentMode === 'measure' && measurementData) {
+            if (measurementData[i] !== null && measurementData[i] !== undefined) {
+                // 測定モード：測定値を使用
+                rt_b = measurementData[i];
+            } else {
+                // 測定モード：このバンドは欠損 → nullのまま（Sabine補完しない）
+                rt_before.push(null);
+                rt_after.push(null);
+                continue;
+            }
         } else {
             // シミュレーションモード：部屋サイズから計算
             rt_b = (0.161 * V) / (A_base + airAbsorption);
@@ -857,7 +864,7 @@ function calculate() {
         
         // After値の計算
         let rt_a;
-        if (currentMode === 'measure' && measurementData && measurementData[i]) {
+        if (currentMode === 'measure' && measurementData && measurementData[i] !== null && measurementData[i] !== undefined) {
             // 測定モード：測定値からパネル効果を減算
             // パネルなし状態のRT → パネルあり状態のRTへの変化量を計算
             const A_total = A_base + A_panels + airAbsorption;
@@ -967,7 +974,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: ブロードバンド解析エンジン（Rev 18.21）
+// Web Worker: ブロードバンド解析エンジン（Rev 18.22）
 // 処理フロー: Farina deconv → BPF×18 → SNR → Schroeder → RT計算
 // ========================================
 const workerCode = `
@@ -1408,7 +1415,7 @@ function calcSNR(ir, bandIndex) {
    EDC(t) = ∫[t→∞] h²(τ)dτ
    打ち切り: ノイズ密度の3倍を下回った時点
 ───────────────────────────────────────────── */
-function schroederIntegral(ir, snr, peakIdx) {
+function schroederIntegral(ir, snr, peakIdx, envNoiseRMS) {
     // ISO 3382-2 Annex A準拠: Lundeby法によるノイズ交点検出 + ノイズ補正後退積分
     // 参考: Lundeby et al. (1995) JASA 98(6), ISO 3382-2:2008 Annex A
     //
@@ -1421,14 +1428,21 @@ function schroederIntegral(ir, snr, peakIdx) {
     const N  = ir.length;
     const fs = _fs;
 
-    // ── Step 1: IR末尾10%からノイズ分散を推定 ──
-    // Farina IRのノイズフロアは残響消滅後（末尾）に純粋に現れる
-    const noiseStart = Math.floor(N * 0.90);
-    let noiseSum = 0;
-    for (let i = noiseStart; i < N; i++) noiseSum += ir[i] * ir[i];
-    const noisePower = noiseSum / (N - noiseStart); // 分散 [power/sample]
+    // ── Step 1: 環境ノイズ分散を推定 ──
+    // envNoiseRMS（calcSNRが返すIR末尾75%ベース）を優先使用。
+    // これはFarina IR振幅スケールと一致しており、Farina数値残留ノイズより
+    // 数桁大きい環境ノイズの実態を反映している。
+    // フォールバック: IR末尾10%推定（envNoiseRMSが未提供の場合）
+    let noisePower;
+    if (envNoiseRMS && envNoiseRMS > 1e-20) {
+        noisePower = envNoiseRMS * envNoiseRMS;
+    } else {
+        const noiseStart = Math.floor(N * 0.90);
+        let noiseSum = 0;
+        for (let i = noiseStart; i < N; i++) noiseSum += ir[i] * ir[i];
+        noisePower = noiseSum / (N - noiseStart);
+    }
 
-    // noisePowerが異常に小さい場合（完全無音IR等）は計算不能
     if (noisePower < 1e-30) {
         self.postMessage({ type: 'debug',
             message: '[Schroeder] noisePower < 1e-30 → 測定不能'
@@ -1653,8 +1667,8 @@ function analyzeAll(msg) {
                 continue;
             }
 
-            // Schroeder積分（単純後退積分、Farina法でSNR確保）
-            const schResult = schroederIntegral(irFiltered, snr, peakIdx);
+            // Schroeder積分: calcSNRの環境ノイズ推定値をLundeby交点検出に使用
+            const schResult = schroederIntegral(irFiltered, snr, peakIdx, noiseRMS);
             if (!schResult) {
                 self.postMessage({ type: 'debug', message: band + 'Hz: Schroeder補正失敗 → skip' });
                 continue;
@@ -1848,7 +1862,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.21 Broadband Sweep仕様）
+// 測定設定（Rev 18.22 Broadband Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
