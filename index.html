@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.6 (Rev 18.22): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v6.7 (Rev 18.23): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -160,7 +160,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.6 (Rev 18.22): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v6.7 (Rev 18.23): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -974,7 +974,7 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: ブロードバンド解析エンジン（Rev 18.22）
+// Web Worker: ブロードバンド解析エンジン（Rev 18.23）
 // 処理フロー: Farina deconv → BPF×18 → SNR → Schroeder → RT計算
 // ========================================
 const workerCode = `
@@ -1543,19 +1543,24 @@ function calcRT(edcDB, truncIdx, peakIdx, fs) {
         return { rt60: rt, method, r2 };
     }
 
+    // 走査上限: RT_MAX×2.0秒
+    // Annex A補正後のEDCはフラット末尾がゆっくり目標dBに達するため、
+    // この上限でlsqRTの回帰対象から除外する
+    const maxSearchSec = RT_MAX * 2.0;
+
     // T60: -5dB → -65dB
-    const v60 = validate(lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -65), 'T60');
+    const v60 = validate(lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -65, maxSearchSec), 'T60');
     if (v60) return v60;
 
     // T30: -5dB → -35dB → ×2外挿
-    const r30 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -35);
+    const r30 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -35, maxSearchSec);
     if (r30) {
         const v30 = validate({ rt: r30.rt * 2.0, r2: r30.r2 }, 'T30');
         if (v30) return v30;
     }
 
     // T20: -5dB → -25dB → ×3外挿
-    const r20 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -25);
+    const r20 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -25, maxSearchSec);
     if (r20) {
         const v20 = validate({ rt: r20.rt * 3.0, r2: r20.r2 }, 'T20');
         if (v20) return v20;
@@ -1564,12 +1569,20 @@ function calcRT(edcDB, truncIdx, peakIdx, fs) {
     return null;
 }
 
-function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB) {
+function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB, maxSearchSec) {
     // ループを peakIdx 起点にする
     // peakIdx 以前の edcDB は -999（未計算）のため、0から走査すると
     // -999 <= -5 が真になり s=0, e=1 が即確定してしまい全バンド失敗する
+    //
+    // searchEnd: Annex A補正後のEDCは残響消滅後もゆっくり目標dBに達するため
+    // 物理的に意味のある最大走査範囲（RT_MAX×2.0秒）で打ち切る。
+    // 例: RT_MAX=5s → maxSearchSec=10s → 10s以降のフラット区間を回帰対象外にする
+    const searchEnd = (maxSearchSec != null)
+        ? Math.min(truncIdx, peakIdx + Math.floor(maxSearchSec * fs))
+        : truncIdx;
+
     let s = -1, e = -1;
-    for (let i = peakIdx; i < truncIdx; i++) {
+    for (let i = peakIdx; i < searchEnd; i++) {
         if (s < 0 && edcDB[i] <= startDB) { s = i; continue; }
         if (s >= 0 && edcDB[i] <= endDB)  { e = i; break; }
     }
@@ -1862,7 +1875,7 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.22 Broadband Sweep仕様）
+// 測定設定（Rev 18.23 Broadband Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
 
