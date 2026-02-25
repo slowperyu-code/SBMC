@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v7.0 (Rev 1.0): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v7.0 (Rev 1.1): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -127,7 +127,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v7.0 (Rev 1.0): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v7.0 (Rev 1.1): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -788,25 +788,43 @@ function calculate() {
     const measuredBandCount = (currentMode === 'measure' && measurementData)
         ? measurementData.filter(v => v !== null).length : null;
 
-    // ── パネル面積集計（吸音 / 拡散 分離）──
+    // ── パネル面積集計（吸音 / 拡散 分離）+ sc加重平均計算 ──
     let totalPanelM2     = 0;
     let diffusionPanelM2 = 0;
+
+    // sc加重平均: scフィールドを持つパネルのみ対象（6バンド）
+    const BANDS = 6;
+    const scWeightedSum = new Array(BANDS).fill(0);
+    let   scTotalM2     = 0;
 
     for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
         const spec = selectedSpecs[panelIdx];
         const qty  = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
         if (spec.category && spec.model && spec.size && qty > 0) {
-            const unitArea = SOUNDBOX_DB.products[spec.category].models[spec.model].s[spec.size];
+            const model    = SOUNDBOX_DB.products[spec.category].models[spec.model];
+            const unitArea = model.s[spec.size];
             const panelM2  = unitArea * qty;
             totalPanelM2 += panelM2;
             if (DIFFUSION_CATS.includes(spec.category)) {
                 diffusionPanelM2 += panelM2;
+            }
+            // sc配列を持つ製品のみ散乱係数集計
+            if (model.sc && Array.isArray(model.sc) && unitArea > 0) {
+                for (let b = 0; b < BANDS; b++) {
+                    scWeightedSum[b] += (model.sc[b] || 0) * panelM2;
+                }
+                scTotalM2 += panelM2;
             }
             document.getElementById(`totalArea_${panelIdx}`).textContent = panelM2.toFixed(2) + '㎡';
         } else {
             document.getElementById(`totalArea_${panelIdx}`).textContent = '-';
         }
     }
+
+    // sc加重平均配列（scパネルが1枚もなければnull）
+    const scAvg = scTotalM2 > 0
+        ? scWeightedSum.map(v => Math.round(v / scTotalM2 * 100) / 100)
+        : null;
 
     const usableSurface = S_wall * 0.8;
 
@@ -824,7 +842,7 @@ function calculate() {
 
     updateUI(rt_before, rt_after, avgRT_before, avgRT_after, targetRT, targetObj,
              achievementRate, totalPanelM2, usableSurface, V,
-             diffusionIndicator, measuredBandCount, fg, diffCoverageRate);
+             diffusionIndicator, measuredBandCount, fg, diffCoverageRate, scAvg);
 }
 
 // ─────────────────────────────────────────────────────
@@ -833,7 +851,7 @@ function calculate() {
 // ─────────────────────────────────────────────────────
 function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
                   achievementRate, totalPanelM2, usableSurface, V,
-                  diffusionIndicator, measuredBandCount, fg, diffCoverageRate) {
+                  diffusionIndicator, measuredBandCount, fg, diffCoverageRate, scAvg) {
 
     // ── 平均RT60表示 ──
     const has500 = measurementData && measurementData[2] !== null;
@@ -958,7 +976,7 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
     }
 
     detailedNote.innerHTML = adviceText;
-    updateChart(rt_before, rt_after, targetRT);
+    updateChart(rt_before, rt_after, targetRT, scAvg);
     lastData = { rt_after: avgAfter, rt_before: avgBefore, targetRT, achievementRate, totalPanelM2, V, status };
 }
 
@@ -1749,7 +1767,9 @@ function sendToGoogleForm() {
     window.open(`${formUrl}?${params.toString()}`,'_blank');
 }
 
-function updateChart(rt_before, rt_after, targetRT) {
+// updateChart() — Rev 1.1
+// 追加: 第2Y軸（散乱係数 s, 0〜1.0）/ scAvg曲線（scパネル追加時のみ表示）
+function updateChart(rt_before, rt_after, targetRT, scAvg) {
     const ctx = document.getElementById('rtChart').getContext('2d');
     if (chart) chart.destroy();
 
@@ -1768,45 +1788,83 @@ function updateChart(rt_before, rt_after, targetRT) {
 
     const beforePlot = fillNullForPlot(rt_before);
     const afterPlot  = fillNullForPlot(rt_after);
+    const hasScData  = scAvg !== null;
+
+    // datasets構築
+    const datasets = [
+        {
+            label: '現状 (Before)', data: beforePlot, spanGaps: true,
+            yAxisID: 'y',
+            borderColor: '#8b949e', backgroundColor: 'rgba(139,148,158,0.05)',
+            borderDash: [5,5], borderWidth: 2, fill: false, tension: 0.3,
+            pointStyle: makePointStyles(rt_before),
+            pointRadius: makePointRadii(rt_before, 4),
+            pointBackgroundColor: makePointColors(rt_before, '#8b949e'),
+            pointBorderColor: makePointColors(rt_before, '#8b949e')
+        },
+        {
+            label: '対策後 (After)', data: afterPlot, spanGaps: true,
+            yAxisID: 'y',
+            borderColor: '#39d353', backgroundColor: 'rgba(57,211,83,0.1)',
+            borderWidth: 3, fill: true, tension: 0.3,
+            pointStyle: makePointStyles(rt_after),
+            pointRadius: makePointRadii(rt_after, 5),
+            pointBackgroundColor: makePointColors(rt_after, '#39d353'),
+            pointBorderColor: makePointColors(rt_after, '#fff'),
+            pointBorderWidth: 2
+        },
+        {
+            label: '目標値', data: FREQS.map(() => targetRT),
+            yAxisID: 'y',
+            borderColor: '#388bfd', backgroundColor: 'rgba(56,139,253,0.05)',
+            borderWidth: 2, borderDash: [10,5], fill: false, pointRadius: 0
+        }
+    ];
+
+    // scAvgがある場合のみ散乱係数曲線を追加
+    if (hasScData) {
+        datasets.push({
+            label: '散乱係数 s（参照）', data: scAvg,
+            yAxisID: 'ysc',
+            borderColor: '#e3b341', backgroundColor: 'rgba(227,179,65,0.08)',
+            borderWidth: 2, borderDash: [4,3], fill: false, tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#e3b341',
+            pointBorderColor: '#e3b341'
+        });
+    }
+
+    // scales構築（scAvgがある場合のみ右Y軸を追加）
+    const scales = {
+        y: {
+            min: 0, max: 2.5,
+            position: 'left',
+            grid: { color: '#30363d' },
+            ticks: { color: '#8b949e', font: { size: 11 }, callback: v => v.toFixed(1)+'s' },
+            title: { display: true, text: 'RT60 (sec)', color: '#8b949e', font: { size: 12, weight: 'bold' } }
+        },
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 } } }
+    };
+    if (hasScData) {
+        scales.ysc = {
+            min: 0, max: 1.0,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: {
+                color: '#e3b341', font: { size: 10 },
+                callback: v => v.toFixed(1)
+            },
+            title: { display: true, text: '散乱係数 s', color: '#e3b341', font: { size: 11, weight: 'bold' } }
+        };
+    }
 
     chart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: FREQS.map(f => f + 'Hz'),
-            datasets: [
-                {
-                    label: '現状 (Before)', data: beforePlot, spanGaps: true,
-                    borderColor: '#8b949e', backgroundColor: 'rgba(139,148,158,0.05)',
-                    borderDash: [5,5], borderWidth: 2, fill: false, tension: 0.3,
-                    pointStyle: makePointStyles(rt_before),
-                    pointRadius: makePointRadii(rt_before, 4),
-                    pointBackgroundColor: makePointColors(rt_before, '#8b949e'),
-                    pointBorderColor: makePointColors(rt_before, '#8b949e')
-                },
-                {
-                    label: '対策後 (After)', data: afterPlot, spanGaps: true,
-                    borderColor: '#39d353', backgroundColor: 'rgba(57,211,83,0.1)',
-                    borderWidth: 3, fill: true, tension: 0.3,
-                    pointStyle: makePointStyles(rt_after),
-                    pointRadius: makePointRadii(rt_after, 5),
-                    pointBackgroundColor: makePointColors(rt_after, '#39d353'),
-                    pointBorderColor: makePointColors(rt_after, '#fff'),
-                    pointBorderWidth: 2
-                },
-                {
-                    label: '目標値', data: FREQS.map(() => targetRT),
-                    borderColor: '#388bfd', backgroundColor: 'rgba(56,139,253,0.05)',
-                    borderWidth: 2, borderDash: [10,5], fill: false, pointRadius: 0
-                }
-            ]
-        },
+        data: { labels: FREQS.map(f => f + 'Hz'), datasets },
         options: {
             responsive: true, maintainAspectRatio: false, spanGaps: true,
             interaction: { mode: 'index', intersect: false },
-            scales: {
-                y: { min: 0, max: 2.5, grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 }, callback: v => v.toFixed(1)+'s' }, title: { display: true, text: 'RT60 (sec)', color: '#8b949e', font: { size: 12, weight: 'bold' } } },
-                x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 } } }
-            },
+            scales,
             plugins: {
                 legend: {
                     display: true, position: 'top',
@@ -1824,7 +1882,13 @@ function updateChart(rt_before, rt_after, targetRT) {
                     borderColor: '#30363d', borderWidth: 1, padding: 10,
                     callbacks: {
                         label: function(ctx) {
+                            // 散乱係数曲線
+                            if (ctx.dataset.yAxisID === 'ysc') {
+                                return '散乱係数 s（参照）: ' + ctx.parsed.y.toFixed(2) + '  ※RT60とは独立した指標';
+                            }
+                            // 目標値
                             if (ctx.datasetIndex === 2) return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + 's';
+                            // Before / After
                             const raw = ctx.datasetIndex === 0 ? rt_before[ctx.dataIndex] : rt_after[ctx.dataIndex];
                             if (raw === null) return ctx.dataset.label + ': N/A（測定不可）';
                             const bi = ctx.dataIndex;
