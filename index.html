@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v6.9 (Rev 18.25): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v7.0 (Rev 1.0): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -78,54 +78,13 @@
         .status-msg.success { background: rgba(57, 211, 83, 0.1); color: var(--success); }
         .status-msg.warning { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
         .status-msg.error { background: rgba(255, 123, 114, 0.1); color: var(--danger); }
-
-        /* ========================================
-           測定進捗バー */
-        .measure-progress {
-            margin-top: 10px;
-            padding: 10px 12px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-        .measure-progress-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-        .measure-progress-label {
-            font-size: 0.72rem;
-            color: var(--text);
-            font-weight: 500;
-        }
-        .measure-progress-count {
-            font-size: 0.65rem;
-            color: var(--dim);
-            font-family: "Roboto Mono", monospace;
-        }
-        .measure-progress-bar-track {
-            width: 100%;
-            height: 8px;
-            background: var(--border);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .measure-progress-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: var(--accent);
-            border-radius: 4px;
-            transition: width 0.4s ease;
-        }
-        .measure-progress-time {
-            font-size: 0.65rem;
-            color: var(--dim);
-            margin-top: 5px;
-            text-align: right;
-        }
-        /* ======================================== */
-
+        .measure-progress { margin-top: 10px; padding: 10px 12px; background: rgba(0,0,0,0.2); border-radius: 6px; border: 1px solid var(--border); }
+        .measure-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .measure-progress-label { font-size: 0.72rem; color: var(--text); font-weight: 500; }
+        .measure-progress-count { font-size: 0.65rem; color: var(--dim); font-family: "Roboto Mono", monospace; }
+        .measure-progress-bar-track { width: 100%; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+        .measure-progress-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 4px; transition: width 0.4s ease; }
+        .measure-progress-time { font-size: 0.65rem; color: var(--dim); margin-top: 5px; text-align: right; }
         .recording-flash { display: none; background: rgba(255, 123, 114, 0.1); border: 2px solid var(--danger); border-radius: 8px; padding: 15px; margin-top: 10px; text-align: center; }
         .recording-flash.active { display: block; animation: flash-border 1s infinite; }
         .flash-icon { font-size: 2rem; animation: blink 1s infinite; }
@@ -168,7 +127,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v6.9 (Rev 18.25): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v7.0 (Rev 1.0): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -181,22 +140,15 @@
         <div style="font-size:0.8rem; font-weight:bold; color:var(--accent); margin-bottom:12px;">
             🎤 PRO 測定モード (Eyring Method / Log-Sweep Analysis)
         </div>
-        
         <div class="measure-controls">
             <div>
                 <label>入力デバイス (マイク)</label>
-                <select id="micSelect">
-                    <option value="">デバイスを選択...</option>
-                </select>
+                <select id="micSelect"><option value="">デバイスを選択...</option></select>
             </div>
             <div>
                 <label>出力デバイス (スピーカー)</label>
-                <select id="spkSelect">
-                    <option value="">デバイスを選択...</option>
-                </select>
+                <select id="spkSelect"><option value="">デバイスを選択...</option></select>
             </div>
-            
-            <!-- SNRプロファイル選択 -->
             <div>
                 <label>測定精度プロファイル</label>
                 <select id="snrProfile" onchange="updateSNRProfileInfo()">
@@ -208,17 +160,11 @@
                     一般的な音響測定に適しています
                 </small>
             </div>
-            
             <button class="btn-base btn-estimate" id="startMeasBtn" onclick="runMeasurementSequence()">
                 測定開始
             </button>
         </div>
-        
         <div id="measureStatus" class="status-msg ready">Ready - デバイスを選択して測定開始してください</div>
-
-        <!-- ========================================
-             測定進捗バー
-             ======================================== -->
         <div id="measureProgress" class="measure-progress" style="display:none;">
             <div class="measure-progress-header">
                 <span id="progressLabel" class="measure-progress-label">準備中...</span>
@@ -229,30 +175,23 @@
             </div>
             <div id="progressTime" class="measure-progress-time">残り約 93 秒</div>
         </div>
-        <!-- ======================================== -->
-        
         <div id="snrIndicator" class="snr-indicator" style="display:none;">
             <label style="font-size:0.7rem; color:var(--dim);">信号対雑音比 (S/N Ratio)</label>
             <div class="snr-bar">
                 <div id="snrValue" class="snr-value" style="width:0%;"></div>
             </div>
         </div>
-        
         <div id="recordingAlert" class="recording-flash">
             <div class="flash-icon">🔴</div>
             <div class="flash-text">📢 測定中です - 静かにしてください</div>
         </div>
-        
         <div id="remeasureWarning" class="warning-box" style="display:none;">
             <strong>⚠️ データ品質が不足しています</strong>
             <div id="warningReason"></div>
             <button onclick="runMeasurementSequence()">再測定を実行</button>
         </div>
-        
         <div id="manualInputPanel" style="display:none; margin-top:15px; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px;">
-            <label style="font-size:0.7rem; color:var(--warning); font-weight:bold;">
-                手動入力モード（測定値を直接入力）
-            </label>
+            <label style="font-size:0.7rem; color:var(--warning); font-weight:bold;">手動入力モード（測定値を直接入力）</label>
             <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px;">
                 <div><label>125Hz</label><input type="number" id="m125" value="0.80" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
                 <div><label>250Hz</label><input type="number" id="m250" value="0.70" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
@@ -261,18 +200,13 @@
                 <div><label>2kHz</label><input type="number" id="m2k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
                 <div><label>4kHz</label><input type="number" id="m4k" value="0.50" step="0.01" style="height:28px; font-size:0.7rem; text-align:center;" oninput="calculate()"></div>
             </div>
-            <div style="font-size:0.65rem; color:var(--dim); margin-top:8px;">
-                ※ 自動測定が利用できない場合、外部測定器で取得した残響時間を入力してください
-            </div>
+            <div style="font-size:0.65rem; color:var(--dim); margin-top:8px;">※ 自動測定が利用できない場合、外部測定器で取得した残響時間を入力してください</div>
         </div>
     </div>
 
     <div class="section-title">1. 基本環境設定</div>
     <div class="grid-3">
-        <div>
-            <label>利用目的 (目標値)</label>
-            <select id="appTarget"></select>
-        </div>
+        <div><label>利用目的 (目標値)</label><select id="appTarget"></select></div>
         <div>
             <label>部屋サイズ W / D / H [m]</label>
             <div style="display:flex; gap:4px;">
@@ -281,10 +215,7 @@
                 <input type="number" id="h" value="2.6" step="0.1">
             </div>
         </div>
-        <div>
-            <label>壁面仕上げ (ベース)</label>
-            <select id="baseWall"></select>
-        </div>
+        <div><label>壁面仕上げ (ベース)</label><select id="baseWall"></select></div>
     </div>
     <div class="grid-3">
         <div><label>天井仕上げ</label><select id="baseCeiling"></select></div>
@@ -294,7 +225,6 @@
             <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">開口部(窓等)を考慮する</label>
         </div>
     </div>
-
     <div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">
         <div class="grid-3" style="grid-template-columns: 2fr 1fr 1fr;">
             <div><label>追加素材</label><select id="exMat"></select></div>
@@ -320,10 +250,12 @@
             <div id="achievementRate" class="res-val">-</div>
             <div id="healthStatus" style="font-size:0.65rem; font-weight:bold;">-</div>
         </div>
+        <!-- 3枚目カード: 導入面積 + 拡散カバレッジ率 + 有効下限周波数 -->
         <div class="res-card">
-            <label style="font-size:0.6rem">導入面積 / 拡散寄与度</label>
-            <div id="totalPanelArea" class="res-val" style="font-size:1.1rem;">-</div>
-            <div id="diffusionBalance" style="font-size:0.65rem; color:var(--primary)">-</div>
+            <label style="font-size:0.6rem">導入面積 / 拡散カバレッジ</label>
+            <div id="totalPanelArea" class="res-val" style="font-size:1.05rem; line-height:1.2;">-</div>
+            <div id="diffusionBalance" style="font-size:0.75rem; font-weight:bold; margin-top:4px;">-</div>
+            <div id="fgDisplay" style="font-size:0.6rem; color:var(--dim); margin-top:5px; border-top:1px solid var(--border); padding-top:4px;">-</div>
         </div>
     </div>
 
@@ -342,58 +274,63 @@
 </div>
 
 <script>
+// ========================================
+// SOUNDBOX_DB (Rev 1.0)
+// サイズ単位: mm統一
+// diffusion フィールド保持（将来の散乱係数配列への移行用プレースホルダー）
+// ========================================
 const SOUNDBOX_DB = {
     apps: [
-        { id: "office", name: "オフィス / 一般会議室 (0.6s)", t: 0.6 },
-        { id: "web_mtg", name: "Web会議室 / オンラインMTG (0.4s)", t: 0.4 },
-        { id: "studio", name: "レコーディングスタジオ (0.4s)", t: 0.4 },
-        { id: "audio", name: "オーディオルーム / ホームシアター (0.45s)", t: 0.45 },
-        { id: "living", name: "リビング / 一般住宅 (0.5s)", t: 0.5 },
-        { id: "broadcast", name: "配信スタジオ / ポッドキャスト (0.35s)", t: 0.35 },
-        { id: "classroom", name: "教室 / セミナールーム (0.7s)", t: 0.7 },
-        { id: "hall", name: "多目的ホール / 体育館 (1.2s)", t: 1.2 }
+        { id: "office",    name: "オフィス / 一般会議室 (0.6s)",          t: 0.6  },
+        { id: "web_mtg",   name: "Web会議室 / オンラインMTG (0.4s)",       t: 0.4  },
+        { id: "studio",    name: "レコーディングスタジオ (0.4s)",           t: 0.4  },
+        { id: "audio",     name: "オーディオルーム / ホームシアター (0.45s)",t: 0.45 },
+        { id: "living",    name: "リビング / 一般住宅 (0.5s)",              t: 0.5  },
+        { id: "broadcast", name: "配信スタジオ / ポッドキャスト (0.35s)",   t: 0.35 },
+        { id: "classroom", name: "教室 / セミナールーム (0.7s)",            t: 0.7  },
+        { id: "hall",      name: "多目的ホール / 体育館 (1.2s)",            t: 1.2  }
     ],
     materials: {
-        "plasterboard": { name: "石膏ボード + 壁紙", data: [0.29, 0.10, 0.05, 0.04, 0.07, 0.09] },
-        "concrete": { name: "コンクリート打放し", data: [0.01, 0.01, 0.01, 0.02, 0.02, 0.03] },
-        "glass": { name: "ガラス窓 / 鏡", data: [0.35, 0.25, 0.18, 0.12, 0.07, 0.04] },
-        "carpet": { name: "タイルカーペット", data: [0.02, 0.05, 0.10, 0.20, 0.30, 0.40] },
-        "wood": { name: "フローリング / 木板", data: [0.15, 0.11, 0.10, 0.07, 0.06, 0.07] },
-        "curtain": { name: "カーテン (重目/プリーツ有)", data: [0.07, 0.31, 0.49, 0.75, 0.70, 0.60] },
+        "plasterboard":  { name: "石膏ボード + 壁紙",            data: [0.29, 0.10, 0.05, 0.04, 0.07, 0.09] },
+        "concrete":      { name: "コンクリート打放し",            data: [0.01, 0.01, 0.01, 0.02, 0.02, 0.03] },
+        "glass":         { name: "ガラス窓 / 鏡",                data: [0.35, 0.25, 0.18, 0.12, 0.07, 0.04] },
+        "carpet":        { name: "タイルカーペット",              data: [0.02, 0.05, 0.10, 0.20, 0.30, 0.40] },
+        "wood":          { name: "フローリング / 木板",           data: [0.15, 0.11, 0.10, 0.07, 0.06, 0.07] },
+        "curtain":       { name: "カーテン (重目/プリーツ有)",    data: [0.07, 0.31, 0.49, 0.75, 0.70, 0.60] },
         "gw_insulation": { name: "グラスウール断熱材 (50mm/32k)", data: [0.25, 0.65, 0.95, 0.98, 0.95, 0.90] }
     },
     products: {
         "STANDARD": {
             name: "1. スタンダードパネル (EQ Series)",
             models: {
-                "STD": { n: "EQ Standard", d: { "30": [0.20, 0.50, 0.95, 1.05, 1.05, 1.00], "60": [0.30, 0.80, 1.10, 1.10, 1.00, 1.00], "120": [0.50, 0.95, 1.10, 1.05, 1.00, 0.95] }, s: { "6x6": 0.36, "6x12": 0.72 } },
-                "R": { n: "EQ R (Rococo)", d: { "30": [0.25, 0.55, 0.98, 1.08, 1.07, 1.02], "60": [0.35, 0.85, 1.12, 1.12, 1.02, 1.02], "120": [0.55, 0.98, 1.12, 1.08, 1.02, 0.98] }, s: { "6x6": 0.36, "6x12": 0.72 } },
-                "B": { n: "EQ B (Baroque)", d: { "30": [0.22, 0.52, 0.96, 1.06, 1.06, 1.01], "60": [0.32, 0.82, 1.11, 1.11, 1.01, 1.01], "120": [0.52, 0.96, 1.11, 1.06, 1.01, 0.96] }, s: { "6x6": 0.36, "6x12": 0.72 } },
-                "F": { n: "EQ Fabric", d: { "30": [0.18, 0.48, 0.93, 1.03, 1.03, 0.98], "60": [0.28, 0.78, 1.08, 1.08, 0.98, 0.98] }, s: { "6x6": 0.36, "6x12": 0.72 } }
+                "STD": { n: "EQ Standard", d: { "30": [0.20,0.50,0.95,1.05,1.05,1.00], "60": [0.30,0.80,1.10,1.10,1.00,1.00], "120": [0.50,0.95,1.10,1.05,1.00,0.95] }, s: { "600×600mm": 0.36, "600×1200mm": 0.72 } },
+                "R":   { n: "EQ R (Rococo)",  d: { "30": [0.25,0.55,0.98,1.08,1.07,1.02], "60": [0.35,0.85,1.12,1.12,1.02,1.02], "120": [0.55,0.98,1.12,1.08,1.02,0.98] }, s: { "600×600mm": 0.36, "600×1200mm": 0.72 } },
+                "B":   { n: "EQ B (Baroque)", d: { "30": [0.22,0.52,0.96,1.06,1.06,1.01], "60": [0.32,0.82,1.11,1.11,1.01,1.01], "120": [0.52,0.96,1.11,1.06,1.01,0.96] }, s: { "600×600mm": 0.36, "600×1200mm": 0.72 } },
+                "F":   { n: "EQ Fabric",      d: { "30": [0.18,0.48,0.93,1.03,1.03,0.98], "60": [0.28,0.78,1.08,1.08,0.98,0.98] },                                          s: { "600×600mm": 0.36, "600×1200mm": 0.72 } }
             }
         },
         "OFFICE_FABRIC": {
             name: "2. オフィス用ファブリック (Walleasear)",
             models: {
-                "EQ30T": { n: "EQ 30T (大面積施工)", d: { "30": [0.19, 0.49, 0.94, 1.04, 1.04, 0.99] }, s: { "12x6": 0.72, "24x6": 1.44 } },
-                "EQ60T": { n: "EQ 60T (大面積施工)", d: { "60": [0.29, 0.79, 1.09, 1.09, 0.99, 0.99] }, s: { "12x6": 0.72, "24x6": 1.44 } },
-                "EQ100T": { n: "EQ 100T (大面積施工)", d: { "100": [0.45, 0.92, 1.10, 1.07, 1.00, 0.96] }, s: { "12x6": 0.72, "24x6": 1.44 } }
+                "EQ30T":  { n: "EQ 30T (大面積施工)", d: { "30":  [0.19,0.49,0.94,1.04,1.04,0.99] }, s: { "1200×600mm": 0.72, "2400×600mm": 1.44 } },
+                "EQ60T":  { n: "EQ 60T (大面積施工)", d: { "60":  [0.29,0.79,1.09,1.09,0.99,0.99] }, s: { "1200×600mm": 0.72, "2400×600mm": 1.44 } },
+                "EQ100T": { n: "EQ 100T (大面積施工)",d: { "100": [0.45,0.92,1.10,1.07,1.00,0.96] }, s: { "1200×600mm": 0.72, "2400×600mm": 1.44 } }
             }
         },
         "ENGINEERING": {
             name: "3. エンジニアリング製品",
             models: {
-                "MT_BAFFLE": { n: "MT Baffle (天井吊下げ)", d: { "40": [0.42, 0.78, 0.95, 0.98, 0.98, 0.96] }, s: { "6x4": 0.24, "12x4": 0.48 } },
-                "CM": { n: "CM Series (クラウド/天井用)", d: { "30": [0.21, 0.53, 0.88, 0.96, 0.98, 0.94], "60": [0.38, 0.84, 1.05, 1.08, 1.02, 0.98] }, s: { "6x6": 0.36 } },
-                "IMAGINE": { n: "Imagine Panel (意匠パネル)", d: { "30": [0.17, 0.46, 0.91, 1.02, 1.03, 0.97] }, s: { "6x6": 0.36 } }
+                "MT_BAFFLE": { n: "MT Baffle (天井吊下げ)",      d: { "40": [0.42,0.78,0.95,0.98,0.98,0.96] }, s: { "600×400mm": 0.24, "1200×400mm": 0.48 } },
+                "CM":        { n: "CM Series (クラウド/天井用)", d: { "30": [0.21,0.53,0.88,0.96,0.98,0.94], "60": [0.38,0.84,1.05,1.08,1.02,0.98] }, s: { "600×600mm": 0.36 } },
+                "IMAGINE":   { n: "Imagine Panel (意匠パネル)", d: { "30": [0.17,0.46,0.91,1.02,1.03,0.97] }, s: { "600×600mm": 0.36 } }
             }
         },
         "BROADBAND": {
             name: "4. ブロードバンド吸音材",
             models: {
-                "F300H": { n: "F300H (高域特化)", d: { "30": [0.10, 0.35, 0.70, 0.95, 1.08, 1.05] }, s: { "3x3": 0.09 } },
-                "F300M": { n: "F300M (中域特化)", d: { "30": [0.15, 0.55, 0.98, 1.05, 0.95, 0.85] }, s: { "3x3": 0.09 } },
-                "F300W": { n: "F300W (低域特化)", d: { "30": [0.35, 0.75, 0.95, 0.90, 0.80, 0.70] }, s: { "3x3": 0.09 } }
+                "F300H": { n: "F300H (高域特化)", d: { "30": [0.10,0.35,0.70,0.95,1.08,1.05] }, s: { "300×300mm": 0.09 } },
+                "F300M": { n: "F300M (中域特化)", d: { "30": [0.15,0.55,0.98,1.05,0.95,0.85] }, s: { "300×300mm": 0.09 } },
+                "F300W": { n: "F300W (低域特化)", d: { "30": [0.35,0.75,0.95,0.90,0.80,0.70] }, s: { "300×300mm": 0.09 } }
             }
         },
         "BASSTRAP": {
@@ -431,48 +368,50 @@ const SOUNDBOX_DB = {
     }
 };
 
+// 拡散カテゴリキー（拡散カバレッジ率の計算に使用）
+const DIFFUSION_CATS = ['DIFFUSION', 'HYBRID'];
+
 const FREQS = [125, 250, 500, 1000, 2000, 4000];
 let chart;
 let selectedSpecs = [{}, {}, {}];
 let lastData = {};
 let currentMode = 'sim';
 let measurementData = null;
-let roomSizeBuffer = { w: 4.0, d: 6.0, h: 2.6 }; // 部屋サイズのバッファ
-let measurementActive = false; // 測定値使用中フラグ
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent); // iOS判定
+let roomSizeBuffer = { w: 4.0, d: 6.0, h: 2.6 };
+let measurementActive = false;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-// SNRプロファイル定義（3段階）
 const SNR_PROFILES = {
     low: {
         label: '低（内蔵デバイス向け）',
-        threshold: 8,          // SNR閾値 [dB]
+        threshold: 8,
         description: 'スマホ/PC内蔵スピーカー・マイク',
         warning: '精度は低下しますが、簡易測定が可能です',
-        skipBands: [0, 1, 2],  // 100, 125, 160Hz を測定対象外（内蔵SPの物理限界）
-        totalBands: 15,        // 18 - 3 = 15バンド測定
-        minValidOctaves: 4     // 5オクターブ（250Hz〜4kHz）中4以上で有効
+        skipBands: [0, 1, 2],
+        totalBands: 15,
+        minValidOctaves: 4
     },
     medium: {
         label: '中（Bluetooth/小型スピーカー）',
-        threshold: 15,         // dB
+        threshold: 15,
         description: 'Bluetoothスピーカー、小型外部スピーカー',
         warning: '一般的な音響測定に適しています',
-        skipBands: [],         // 全18バンド測定
+        skipBands: [],
         totalBands: 18,
-        minValidOctaves: 4     // 6オクターブ中4以上
+        minValidOctaves: 4
     },
     high: {
         label: '高（ISO準拠・プロ測定）',
-        threshold: 25,         // dB
+        threshold: 25,
         description: '専用測定機器、大型スピーカーシステム',
         warning: 'ISO 3382準拠の高精度測定',
-        skipBands: [],         // 全18バンド測定
+        skipBands: [],
         totalBands: 18,
-        minValidOctaves: 5     // 6オクターブ中5以上（高精度要件）
+        minValidOctaves: 5
     }
 };
 
-let currentSNRProfile = 'medium'; // デフォルト
+let currentSNRProfile = 'medium';
 
 function init() {
     const appSelect = document.getElementById('appTarget');
@@ -483,8 +422,7 @@ function init() {
         appSelect.appendChild(option);
     });
 
-    const materialSelects = ['baseWall', 'baseCeiling', 'baseFloor', 'exMat'];
-    materialSelects.forEach(selectId => {
+    ['baseWall', 'baseCeiling', 'baseFloor', 'exMat'].forEach(selectId => {
         const select = document.getElementById(selectId);
         for (let key in SOUNDBOX_DB.materials) {
             const option = document.createElement('option');
@@ -546,79 +484,58 @@ function init() {
     calculate();
 }
 
-// ─────────────────────────────────────────────────────
-// 部屋サイズ入力欄の制御
-// ─────────────────────────────────────────────────────
 function saveRoomSizeToBuffer() {
     roomSizeBuffer.w = parseFloat(document.getElementById('w').value);
     roomSizeBuffer.d = parseFloat(document.getElementById('d').value);
     roomSizeBuffer.h = parseFloat(document.getElementById('h').value);
 }
-
 function restoreRoomSizeFromBuffer() {
     document.getElementById('w').value = roomSizeBuffer.w;
     document.getElementById('d').value = roomSizeBuffer.d;
     document.getElementById('h').value = roomSizeBuffer.h;
 }
-
 function disableRoomSizeInputs() {
     document.getElementById('w').disabled = true;
     document.getElementById('d').disabled = true;
     document.getElementById('h').disabled = true;
 }
-
 function enableRoomSizeInputs() {
     document.getElementById('w').disabled = false;
     document.getElementById('d').disabled = false;
     document.getElementById('h').disabled = false;
 }
 
-// ─────────────────────────────────────────────────────
-// SNRプロファイル情報更新
-// ─────────────────────────────────────────────────────
 function updateSNRProfileInfo() {
-    const select = document.getElementById('snrProfile');
-    const info   = document.getElementById('snrProfileInfo');
-    const key    = select.value;
+    const select  = document.getElementById('snrProfile');
+    const info    = document.getElementById('snrProfileInfo');
+    const key     = select.value;
     const profile = SNR_PROFILES[key];
-
     if (profile) {
         const skipNote = profile.skipBands.length > 0
             ? '100〜160Hz は測定対象外（内蔵SP物理限界）'
             : '全18バンド（100Hz〜5kHz）を測定';
-        info.innerHTML =
-            profile.description + '<br>' +
-            'SNR閾値: ' + profile.threshold + 'dB &nbsp; ' + skipNote + '<br>' +
-            profile.warning;
+        info.innerHTML = profile.description + '<br>' + 'SNR閾値: ' + profile.threshold + 'dB &nbsp; ' + skipNote + '<br>' + profile.warning;
         currentSNRProfile = key;
     }
 }
 
 function setMode(mode) {
     currentMode = mode;
-    const btnSim = document.getElementById('btnSim');
+    const btnSim     = document.getElementById('btnSim');
     const btnMeasure = document.getElementById('btnMeasure');
-    
     if (mode === 'sim') {
         btnSim.classList.add('active');
         btnSim.classList.remove('measure');
         btnMeasure.classList.remove('active', 'measure');
         document.getElementById('measurementPanel').style.display = 'none';
-        
-        // シミュレーションモード：部屋サイズ入力を復元・編集可能
         enableRoomSizeInputs();
-        if (measurementActive) {
-            restoreRoomSizeFromBuffer();
-        }
+        if (measurementActive) restoreRoomSizeFromBuffer();
         measurementActive = false;
-        
     } else {
         btnSim.classList.remove('active');
         btnMeasure.classList.add('active', 'measure');
         document.getElementById('measurementPanel').style.display = 'block';
         enumerateDevices();
-        
-        // 測定モード：測定値がある場合はグレーアウト
         if (measurementData && measurementData.length > 0) {
             disableRoomSizeInputs();
             measurementActive = true;
@@ -627,15 +544,14 @@ function setMode(mode) {
             measurementActive = false;
         }
     }
-    
     const methodBadge = document.getElementById('methodBadge');
     if (mode === 'sim') {
         methodBadge.textContent = 'SABINE';
         methodBadge.style.background = 'var(--accent)';
     } else if (window._measurementMethod) {
         methodBadge.textContent = window._measurementMethod;
-        const methodColors = { 'T60': 'var(--success)', 'T30': 'var(--warning)', 'T20': 'var(--caution)' };
-        methodBadge.style.background = methodColors[window._measurementMethod] || 'var(--warning)';
+        const mc = { 'T60': 'var(--success)', 'T30': 'var(--warning)', 'T20': 'var(--caution)' };
+        methodBadge.style.background = mc[window._measurementMethod] || 'var(--warning)';
     } else {
         methodBadge.textContent = 'EYRING';
         methodBadge.style.background = 'var(--warning)';
@@ -647,94 +563,50 @@ async function enumerateDevices() {
     const statusEl = document.getElementById('measureStatus');
     const micSelect = document.getElementById('micSelect');
     const spkSelect = document.getElementById('spkSelect');
-    
     try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
             throw new Error('このブラウザは音声入力に対応していません。Chrome/Edge/Firefoxをご利用ください。');
-        }
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost')
             throw new Error('セキュリティ上の理由により、HTTPSページでのみ動作します。');
-        }
-        
         statusEl.textContent = 'マイクへのアクセス権限をリクエスト中...';
         statusEl.className = 'status-msg calibrating';
-        
-        // 権限取得（デバイスラベルを解放するため）
         let stream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                }
-            });
+            stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         } catch (permError) {
-            if (permError.name === 'NotAllowedError') {
-                throw new Error('マイクへのアクセスが拒否されました。ブラウザのアドレスバー横のアイコンからマイクを許可してください。');
-            } else if (permError.name === 'NotFoundError') {
-                throw new Error('マイクデバイスが見つかりません。マイクが接続されているか確認してください。');
-            } else {
-                throw new Error('マイクへのアクセスに失敗しました: ' + permError.message);
-            }
+            if (permError.name === 'NotAllowedError') throw new Error('マイクへのアクセスが拒否されました。ブラウザのアドレスバー横のアイコンからマイクを許可してください。');
+            else if (permError.name === 'NotFoundError') throw new Error('マイクデバイスが見つかりません。マイクが接続されているか確認してください。');
+            else throw new Error('マイクへのアクセスに失敗しました: ' + permError.message);
         }
-        
-        // 権限取得直後は300ms待機（ブラウザのデバイス情報更新を待つ）
         statusEl.textContent = 'デバイスを検索中...';
         await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // デバイスリスト取得
         const devices = await navigator.mediaDevices.enumerateDevices();
-        
-        // ストリーム停止
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
-        
-        // setSinkId対応チェック
+        if (stream) stream.getTracks().forEach(track => track.stop());
         const canSetSink = 'setSinkId' in HTMLAudioElement.prototype;
-        
-        // リスト初期化
         micSelect.innerHTML = '<option value="">デバイスを選択...</option>';
         spkSelect.innerHTML = '<option value="">(既定の出力)</option>';
-        
         let micCount = 0, spkCount = 0;
-        
         devices.forEach(device => {
             const option = document.createElement('option');
             option.value = device.deviceId;
             option.textContent = device.label || `${device.kind === 'audioinput' ? 'マイク' : 'スピーカー'} (${device.deviceId.substr(0, 8)}...)`;
-            
-            if (device.kind === 'audioinput') {
-                micSelect.appendChild(option);
-                micCount++;
-            } else if (device.kind === 'audiooutput') {
-                if (!canSetSink) {
-                    option.disabled = true;
-                    option.textContent += ' (非対応)';
-                }
-                spkSelect.appendChild(option);
-                spkCount++;
+            if (device.kind === 'audioinput') { micSelect.appendChild(option); micCount++; }
+            else if (device.kind === 'audiooutput') {
+                if (!canSetSink) { option.disabled = true; option.textContent += ' (非対応)'; }
+                spkSelect.appendChild(option); spkCount++;
             }
         });
-        
-        // 結果表示
         if (micCount > 0) {
             let message = `✅ デバイス検出完了: マイク ${micCount}台、スピーカー ${spkCount}台`;
-            if (!canSetSink) {
-                message += '\n⚠️ このブラウザはスピーカー選択に非対応です。システム設定の既定デバイスが使用されます。';
-            }
+            if (!canSetSink) message += '\n⚠️ このブラウザはスピーカー選択に非対応です。システム設定の既定デバイスが使用されます。';
             statusEl.textContent = message;
             statusEl.className = 'status-msg ready';
-            
-            // デフォルト選択
             if (micSelect.options.length > 1) micSelect.selectedIndex = 1;
             if (spkSelect.options.length > 1 && canSetSink) spkSelect.selectedIndex = 1;
         } else {
             statusEl.textContent = '⚠️ マイクデバイスが見つかりません。マイクが接続されているか確認してください。';
             statusEl.className = 'status-msg error';
         }
-        
     } catch (error) {
         statusEl.textContent = '❌ ' + (error.message || 'デバイスの取得に失敗しました');
         statusEl.className = 'status-msg error';
@@ -765,11 +637,12 @@ function renderPanel(index) {
     if (!categoryKey) {
         document.getElementById(`col_model_${index}`).innerHTML = '<div class="col-title">MODEL</div>';
         document.getElementById(`col_thick_${index}`).innerHTML = '<div class="col-title">THICKNESS</div>';
-        document.getElementById(`col_size_${index}`).innerHTML = '<div class="col-title">SIZE</div>';
+        document.getElementById(`col_size_${index}`).innerHTML  = '<div class="col-title">SIZE</div>';
         return;
     }
     const category = SOUNDBOX_DB.products[categoryKey];
     const spec = selectedSpecs[index];
+
     const modelCol = document.getElementById(`col_model_${index}`);
     modelCol.innerHTML = '<div class="col-title">MODEL</div>';
     for (let modelKey in category.models) {
@@ -779,6 +652,7 @@ function renderPanel(index) {
         modelDiv.onclick = () => selectModel(index, categoryKey, modelKey);
         modelCol.appendChild(modelDiv);
     }
+
     const thickCol = document.getElementById(`col_thick_${index}`);
     thickCol.innerHTML = '<div class="col-title">THICKNESS</div>';
     if (spec.model) {
@@ -791,6 +665,7 @@ function renderPanel(index) {
             thickCol.appendChild(thickDiv);
         }
     }
+
     const sizeCol = document.getElementById(`col_size_${index}`);
     sizeCol.innerHTML = '<div class="col-title">SIZE</div>';
     if (spec.model && spec.thick) {
@@ -805,8 +680,14 @@ function renderPanel(index) {
     }
 }
 
-function selectModel(index, categoryKey, modelKey) { selectedSpecs[index] = { category: categoryKey, model: modelKey }; renderPanel(index); }
-function selectThickness(index, categoryKey, modelKey, thickKey) { selectedSpecs[index].thick = thickKey; renderPanel(index); }
+function selectModel(index, categoryKey, modelKey) {
+    selectedSpecs[index] = { category: categoryKey, model: modelKey };
+    renderPanel(index);
+}
+function selectThickness(index, categoryKey, modelKey, thickKey) {
+    selectedSpecs[index].thick = thickKey;
+    renderPanel(index);
+}
 function selectSize(index, categoryKey, modelKey, thickKey, sizeKey) {
     selectedSpecs[index].size = sizeKey;
     const model = SOUNDBOX_DB.products[categoryKey].models[modelKey];
@@ -818,175 +699,264 @@ function selectSize(index, categoryKey, modelKey, thickKey, sizeKey) {
 
 function prepareForPrint() { window.print(); }
 
+// ─────────────────────────────────────────────────────
+// calculate() — Rev 1.0
+// 追加: Schroeder fg計算 / 拡散カバレッジ率（DIFFUSION+HYBRIDカテゴリ分離）
+// ─────────────────────────────────────────────────────
 function calculate() {
     const w = parseFloat(document.getElementById('w').value) || 0.1;
     const d = parseFloat(document.getElementById('d').value) || 0.1;
     const h = parseFloat(document.getElementById('h').value) || 0.1;
-    const V = w * d * h;
+    const V       = w * d * h;
     const S_total = 2 * (w * d + d * h + h * w);
-    const S_wall = 2 * (d * h + h * w);
+    const S_wall  = 2 * (d * h + h * w);
     const S_ceiling = w * d;
-    const S_floor = w * d;
+    const S_floor   = w * d;
     if (V <= 0 || S_total <= 0) return;
+
     const L_mean = (4 * V) / S_total;
-    const diffusionIndicator = (L_mean * 0.12).toFixed(2);
+    const diffusionIndicator = (L_mean * 0.12).toFixed(2); // 保持（将来用）
+
     const appIndex = parseInt(document.getElementById('appTarget').value) || 0;
     const targetObj = SOUNDBOX_DB.apps[appIndex];
-    const targetRT = targetObj.t;
-    const wallMat = SOUNDBOX_DB.materials[document.getElementById('baseWall').value];
+    const targetRT  = targetObj.t;
+
+    const wallMat    = SOUNDBOX_DB.materials[document.getElementById('baseWall').value];
     const ceilingMat = SOUNDBOX_DB.materials[document.getElementById('baseCeiling').value];
-    const floorMat = SOUNDBOX_DB.materials[document.getElementById('baseFloor').value];
+    const floorMat   = SOUNDBOX_DB.materials[document.getElementById('baseFloor').value];
+
     let exArea = 0, exMat = null;
     if (document.getElementById('showSpecial').checked) {
         exArea = parseFloat(document.getElementById('exArea').value) || 0;
-        exMat = SOUNDBOX_DB.materials[document.getElementById('exMat').value];
+        exMat  = SOUNDBOX_DB.materials[document.getElementById('exMat').value];
     }
+
     const actualWallArea = Math.max(0, S_wall - exArea);
     const rt_before = [], rt_after = [];
     const m_coeffs = [0, 0, 0, 0, 0.002, 0.007];
-    
+
     for (let i = 0; i < 6; i++) {
-        let A_base = actualWallArea * wallMat.data[i] + S_ceiling * ceilingMat.data[i] + S_floor * floorMat.data[i];
+        let A_base = actualWallArea * wallMat.data[i]
+                   + S_ceiling * ceilingMat.data[i]
+                   + S_floor   * floorMat.data[i];
         if (exArea > 0 && exMat) A_base += exArea * exMat.data[i];
         const airAbsorption = 4 * m_coeffs[i] * V;
-        
-        // Before値の決定
+
         let rt_b;
         if (currentMode === 'measure' && measurementData) {
             if (measurementData[i] !== null && measurementData[i] !== undefined) {
-                // 測定モード：測定値を使用
                 rt_b = measurementData[i];
             } else {
-                // 測定モード：このバンドは欠損 → nullのまま（Sabine補完しない）
                 rt_before.push(null);
                 rt_after.push(null);
                 continue;
             }
         } else {
-            // シミュレーションモード：部屋サイズから計算
             rt_b = (0.161 * V) / (A_base + airAbsorption);
         }
         rt_before.push(rt_b);
-        
-        // パネル吸音力の計算
+
         let A_panels = 0;
         for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
             const spec = selectedSpecs[panelIdx];
-            const qty = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
+            const qty  = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
             if (spec.category && spec.model && spec.thick && spec.size && qty > 0) {
                 const product = SOUNDBOX_DB.products[spec.category].models[spec.model];
                 A_panels += product.s[spec.size] * qty * (product.d[spec.thick][i] - wallMat.data[i]);
             }
         }
-        
-        // After値の計算
+
         let rt_a;
         if (currentMode === 'measure' && measurementData && measurementData[i] !== null && measurementData[i] !== undefined) {
-            // 測定モード：測定値からパネル効果を減算
-            // パネルなし状態のRT → パネルあり状態のRTへの変化量を計算
-            const A_total = A_base + A_panels + airAbsorption;
-            const avgAlpha = Math.min(A_total / S_total, 0.999);
-            const rt_with_panels = (0.161 * V) / (-S_total * Math.log(1 - avgAlpha) + airAbsorption);
-            
-            // 現状の吸音力を逆算
-            const A_current = (0.161 * V) / rt_b - airAbsorption;
-            // パネル追加後の吸音力
-            const A_after = A_current + A_panels;
+            const A_current    = (0.161 * V) / rt_b - airAbsorption;
+            const A_after      = A_current + A_panels;
             const avgAlpha_after = Math.min((A_after + airAbsorption) / S_total, 0.999);
             rt_a = (0.161 * V) / (-S_total * Math.log(1 - avgAlpha_after) + airAbsorption);
-            rt_a = Math.max(0.1, rt_a); // 最小0.1秒
+            rt_a = Math.max(0.1, rt_a);
         } else {
-            // シミュレーションモード：Sabine式
             const A_total = A_base + A_panels + airAbsorption;
             rt_a = (0.161 * V) / A_total;
         }
         rt_after.push(rt_a);
     }
-    // 実測値のみで平均計算（null=未測定バンドは除外・Sabine補完しない）
+
     const validAfterVals  = rt_after.filter(v => v !== null);
     const validBeforeVals = rt_before.filter(v => v !== null);
     const avgRT_after  = validAfterVals.length  > 0 ? validAfterVals.reduce((s,v)=>s+v,0)  / validAfterVals.length  : 0;
     const avgRT_before = validBeforeVals.length > 0 ? validBeforeVals.reduce((s,v)=>s+v,0) / validBeforeVals.length : 0;
-    // 測定モード時は有効バンド数を表示に使う
+
     const measuredBandCount = (currentMode === 'measure' && measurementData)
         ? measurementData.filter(v => v !== null).length : null;
-    let totalPanelM2 = 0;
+
+    // ── パネル面積集計（吸音 / 拡散 分離）──
+    let totalPanelM2     = 0;
+    let diffusionPanelM2 = 0;
+
     for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
         const spec = selectedSpecs[panelIdx];
-        const qty = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
+        const qty  = parseInt(document.getElementById(`qty_${panelIdx}`).value) || 0;
         if (spec.category && spec.model && spec.size && qty > 0) {
             const unitArea = SOUNDBOX_DB.products[spec.category].models[spec.model].s[spec.size];
-            totalPanelM2 += unitArea * qty;
-            document.getElementById(`totalArea_${panelIdx}`).textContent = (unitArea * qty).toFixed(2) + '㎡';
+            const panelM2  = unitArea * qty;
+            totalPanelM2 += panelM2;
+            if (DIFFUSION_CATS.includes(spec.category)) {
+                diffusionPanelM2 += panelM2;
+            }
+            document.getElementById(`totalArea_${panelIdx}`).textContent = panelM2.toFixed(2) + '㎡';
         } else {
             document.getElementById(`totalArea_${panelIdx}`).textContent = '-';
         }
     }
+
     const usableSurface = S_wall * 0.8;
-    const achievementRate = (targetRT / avgRT_after) * 100;
-    updateUI(rt_before, rt_after, avgRT_before, avgRT_after, targetRT, targetObj, achievementRate, totalPanelM2, usableSurface, V, diffusionIndicator, measuredBandCount);
+
+    // ── Schroeder周波数計算 ──
+    // fg = 2000 × √(T60 / V)  [Hz]
+    // 測定モードでは測定RT60の平均値を使用
+    const fg = (avgRT_after > 0 && V > 0)
+        ? Math.round(2000 * Math.sqrt(avgRT_after / V))
+        : null;
+
+    // ── 拡散カバレッジ率 ──
+    const diffCoverageRate = usableSurface > 0 ? (diffusionPanelM2 / usableSurface) * 100 : 0;
+
+    const achievementRate = avgRT_after > 0 ? (targetRT / avgRT_after) * 100 : 0;
+
+    updateUI(rt_before, rt_after, avgRT_before, avgRT_after, targetRT, targetObj,
+             achievementRate, totalPanelM2, usableSurface, V,
+             diffusionIndicator, measuredBandCount, fg, diffCoverageRate);
 }
 
-function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj, achievementRate, totalPanelM2, usableSurface, V, diffusionIndicator, measuredBandCount) {
-    // 測定モード: 500Hz・1kHz両方有効な場合のみ平均値を表示
-    // 片方でも有効であれば計算できるが、ラベルを明示する
+// ─────────────────────────────────────────────────────
+// updateUI() — Rev 1.0
+// B案: カードはパーセンテージのみ・判定はフッターへ / 有効下限周波数表記
+// ─────────────────────────────────────────────────────
+function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
+                  achievementRate, totalPanelM2, usableSurface, V,
+                  diffusionIndicator, measuredBandCount, fg, diffCoverageRate) {
+
+    // ── 平均RT60表示 ──
     const has500 = measurementData && measurementData[2] !== null;
     const has1k  = measurementData && measurementData[3] !== null;
     const coreAvailable = currentMode !== 'measure' || (has500 || has1k);
-    let avgLabel;
-    let bandInfoLabel = '';
+    let avgLabel = '', bandInfoLabel = '';
     if (!coreAvailable) {
         avgLabel = 'N/A';
-        bandInfoLabel = '';
     } else if (measuredBandCount !== null) {
         avgLabel = avgAfter.toFixed(2) + 's';
         bandInfoLabel = 'Measured: ' + measuredBandCount + ' / 6';
     } else {
         avgLabel = avgAfter.toFixed(2) + 's';
-        bandInfoLabel = '';
     }
     document.getElementById('postRT_Avg').textContent = avgLabel;
     const _bandInfoEl = document.getElementById('measuredBandInfo');
     if (_bandInfoEl) _bandInfoEl.textContent = bandInfoLabel;
     document.getElementById('targetLabel').textContent = `目標: ${targetRT}s`;
     document.getElementById('achievementRate').textContent = achievementRate.toFixed(0) + '%';
-    document.getElementById('totalPanelArea').textContent = `${totalPanelM2.toFixed(1)} / ${usableSurface.toFixed(1)}㎡`;
-    document.getElementById('diffusionBalance').style.display = 'none'; // 拡散寄与度は未実装のため非表示
-    const cardHealth = document.getElementById('cardHealth');
+    document.getElementById('totalPanelArea').textContent  = `${totalPanelM2.toFixed(1)} / ${usableSurface.toFixed(1)}㎡`;
+
+    // ── 3枚目カード: 拡散カバレッジ率（B案: %のみ表示・判定はフッターへ）──
+    const hasDiffusionPanels = diffCoverageRate > 0;
+    if (hasDiffusionPanels) {
+        let coverageColor;
+        if      (diffCoverageRate >= 30) coverageColor = 'var(--success)';
+        else if (diffCoverageRate >= 15) coverageColor = 'var(--warning)';
+        else                             coverageColor = 'var(--caution)';
+        document.getElementById('diffusionBalance').innerHTML =
+            `拡散カバレッジ: <span style="color:${coverageColor}; font-weight:bold;">${diffCoverageRate.toFixed(0)}%</span>`;
+    } else {
+        document.getElementById('diffusionBalance').innerHTML =
+            `<span style="color:var(--dim);">拡散カバレッジ: —</span>`;
+    }
+
+    // ── 3枚目カード: 有効下限周波数（旧称 Schroeder fg）──
+    let fgColor = 'var(--dim)', fgLabel = '';
+    if (fg !== null) {
+        if (fg < 300)      { fgColor = 'var(--success)'; fgLabel = 'シミュレーション 有効域'; }
+        else if (fg < 500) { fgColor = 'var(--warning)'; fgLabel = '境界域'; }
+        else               { fgColor = 'var(--caution)'; fgLabel = '小部屋 注意'; }
+        document.getElementById('fgDisplay').innerHTML =
+            `<span style="color:var(--dim);">有効下限周波数: </span><span style="color:${fgColor}; font-weight:bold;">${fg}Hz</span>` +
+            ` <span style="color:${fgColor}; font-size:0.58rem;">${fgLabel}</span>`;
+    } else {
+        document.getElementById('fgDisplay').textContent = '';
+    }
+
+    // ── 実用性評価カード ──
+    const cardHealth  = document.getElementById('cardHealth');
     const healthStatus = document.getElementById('healthStatus');
     const adviceHeader = document.getElementById('adviceHeader');
     const detailedNote = document.getElementById('detailedNote');
-    let status, statusColor, adviceTagColor, adviceText;
+
+    let status, statusColor, adviceTagColor, adviceText, score;
+
     if (totalPanelM2 > usableSurface) {
-        status = '設置限界超過'; statusColor = 'var(--danger)'; adviceTagColor = '#ff7b72';
+        // 設置限界超過
+        status = '設置限界超過'; statusColor = 'var(--danger)'; adviceTagColor = '#ff7b72'; score = -1;
         adviceHeader.textContent = 'FAIL'; adviceHeader.style.background = adviceTagColor;
-        adviceText = '壁面の有効面積（80%）を超えるパネルが配置されています。パネル枚数を減らすか、より厚型のパネルへの変更を検討してください。';
+        adviceText = `壁面の有効面積（80%）を超えるパネルが配置されています。パネル枚数を減らすか、より厚型のパネルへの変更を検討してください。`;
     } else if (achievementRate >= 120) {
-        status = '響きが少ない'; statusColor = 'var(--caution)'; adviceTagColor = '#f0883e';
+        // OVER（デッド）
+        status = '響きが少ない'; statusColor = 'var(--caution)'; adviceTagColor = '#f0883e'; score = 120;
         adviceHeader.textContent = 'OVER'; adviceHeader.style.background = adviceTagColor;
-        adviceText = '空間がデッド過ぎる傾向にあります。拡散パネルを活用してください。';
+        adviceText = '空間がデッド過ぎる傾向にあります。';
+        if (!hasDiffusionPanels) {
+            adviceText += '吸音パネルのさらなる追加より、<strong>拡散パネルの導入</strong>を優先して検討してください。';
+        } else if (diffCoverageRate < 15) {
+            adviceText += '吸音パネルの追加よりも<strong>拡散パネルを優先して追加</strong>してください（現在の拡散カバレッジ: ' + diffCoverageRate.toFixed(0) + '%）。';
+        } else if (diffCoverageRate < 30) {
+            adviceText += '拡散パネルをさらに追加して音場の均一性を高めることを推奨します（現在: ' + diffCoverageRate.toFixed(0) + '%、目標: 30%以上）。';
+        } else {
+            adviceText += '拡散カバレッジは十分です（' + diffCoverageRate.toFixed(0) + '%）。配置バランスの見直しを検討してください。';
+        }
     } else if (achievementRate >= 100) {
-        status = '理想的'; statusColor = 'var(--success)'; adviceTagColor = '#39d353';
+        // IDEAL
+        status = '理想的'; statusColor = 'var(--success)'; adviceTagColor = '#39d353'; score = 100;
         adviceHeader.textContent = 'IDEAL'; adviceHeader.style.background = adviceTagColor;
-        adviceText = '理想的な数値です。目標の残響時間を達成しています。';
+        adviceText = '目標の残響時間を達成しています。';
+        if (hasDiffusionPanels && diffCoverageRate < 15) {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散改善の余地あり</strong><br>残響時間は適切ですが、拡散面が不足しています（' + diffCoverageRate.toFixed(0) + '%）。拡散パネルの追加で音場の均一性が向上します。';
+        } else if (!hasDiffusionPanels) {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散パネルも検討してみてください</strong><br>残響時間は達成済みです。拡散パネルを追加することで、より均一な音場を実現できます。';
+        }
     } else if (achievementRate >= 80) {
-        status = '実用レベル'; statusColor = 'var(--accent)'; adviceTagColor = '#388bfd';
+        // GOOD
+        status = '実用レベル'; statusColor = 'var(--accent)'; adviceTagColor = '#388bfd'; score = 80;
         adviceHeader.textContent = 'GOOD'; adviceHeader.style.background = adviceTagColor;
         adviceText = '実用上十分な導入効果です。低域の制御には厚型を検討してください。';
+        if (hasDiffusionPanels && diffCoverageRate < 15) {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散改善の余地あり</strong><br>拡散パネルの追加（目標: 30%以上）で音場品質をさらに向上できます（現在: ' + diffCoverageRate.toFixed(0) + '%）。';
+        }
     } else {
-        status = '吸音不足'; statusColor = 'var(--danger)'; adviceTagColor = '#ff7b72';
+        // UNDER（吸音不足）
+        status = '吸音不足'; statusColor = 'var(--danger)'; adviceTagColor = '#ff7b72'; score = 0;
         adviceHeader.textContent = 'UNDER'; adviceHeader.style.background = adviceTagColor;
-        adviceText = '目標残響時間に達していません。パネル増設を推奨します。';
+        adviceText = '目標残響時間に達していません。吸音パネルの増設を推奨します。';
     }
-    healthStatus.textContent = status;
-    healthStatus.style.color = statusColor;
+
+    healthStatus.textContent   = status;
+    healthStatus.style.color   = statusColor;
     cardHealth.style.borderColor = statusColor;
-    if (V < 30) {
-        adviceText += '<br><br><strong style="color:#ffb86c;">⚠️ Small Room Analysis</strong><br>本空間は容積が小さいため、計算上の数値よりも、平行面で発生する定在波（ブーミング）の抑制が重要です。壁面の中央だけでなく、入隅（コーナー）への吸音材配置を優先することで、低域のエネルギーを効率的に処理できます。';
+
+    // ── 有効下限周波数アドバイス ──
+    if (fg !== null) {
+        if (fg > 500) {
+            adviceText += '<br><br><strong style="color:var(--caution);">⚠️ 有効下限周波数: ' + fg + 'Hz（小部屋）</strong><br>'
+                + fg + 'Hz以下の帯域は定在波が支配的となり、シミュレーション精度が低下します。低域のエネルギー制御にはコーナーへのベーストラップ配置を優先してください。';
+        } else if (fg > 300) {
+            adviceText += '<br><br><span style="color:var(--dim); font-size:0.7rem;">有効下限周波数: ' + fg + 'Hz（境界域）— '
+                + fg + 'Hz以上でシミュレーション結果の信頼性が高くなります。</span>';
+        }
     }
-    if (rt_after[0] > avgAfter * 1.5) {
+
+    // ── 小部屋・低域警告（既存ロジック継承）──
+    if (V < 30) {
+        adviceText += '<br><br><strong style="color:#ffb86c;">⚠️ Small Room Analysis</strong><br>本空間は容積が小さいため、計算上の数値よりも平行面で発生する定在波（ブーミング）の抑制が重要です。入隅（コーナー）への吸音材配置を優先することで、低域のエネルギーを効率的に処理できます。';
+    }
+    if (rt_after[0] !== null && avgAfter > 0 && rt_after[0] > avgAfter * 1.5) {
         adviceText += '<br><br><strong style="color:#ffb86c;">⚠️ 125Hz 低域残響警告</strong><br>125Hzの残響時間が突出しています。低域の制御には120mm厚のパネル、またはコーナー配置のベーストラップを推奨します。';
     }
+
     detailedNote.innerHTML = adviceText;
     updateChart(rt_before, rt_after, targetRT);
     lastData = { rt_after: avgAfter, rt_before: avgBefore, targetRT, achievementRate, totalPanelM2, V, status };
@@ -997,110 +967,66 @@ window.addEventListener('DOMContentLoaded', init);
 
 <script>
 // ========================================
-// Web Worker: ブロードバンド解析エンジン（Rev 18.25）
+// Web Worker: ブロードバンド解析エンジン（Rev 1.0）
 // 処理フロー: Farina deconv → BPF×18 → SNR → Schroeder → RT計算
 // ========================================
 const workerCode = `
 'use strict';
 
-// INIT受信で設定を保持
 let _fs  = 48000;
 let _cfg = null;
-let _noiseFloor = null; // キャリブレーション結果（18バンド）
-let _latencyOffset = null; // レイテンシーキャリブレーション結果（サンプル数）
+let _noiseFloor = null;
+let _latencyOffset = null;
 
 self.onmessage = function(e) {
     const msg = e.data;
-    if (msg.type === 'INIT') {
-        _fs  = msg.sampleRate;
-        _cfg = msg.config;
-        return;
-    }
-    if (msg.type === 'SET_LATENCY') {
-        _latencyOffset = msg.latencyOffset;
-        console.log('### Worker: レイテンシーオフセット受信: ' + _latencyOffset + 'サンプル (' + (_latencyOffset/_fs).toFixed(3) + 's)');
-        return;
-    }
+    if (msg.type === 'INIT') { _fs = msg.sampleRate; _cfg = msg.config; return; }
+    if (msg.type === 'SET_LATENCY') { _latencyOffset = msg.latencyOffset; return; }
     if (msg.type === 'CALIBRATION') {
-        // 録音データからバンド別ノイズフロアを計算
         const noiseRec = new Float32Array(msg.noiseRecording);
         _noiseFloor = calculateNoiseFloorFromRecording(noiseRec);
-        self.postMessage({ type: 'calibrationDone' }); // 完了通知
+        self.postMessage({ type: 'calibrationDone' });
         return;
     }
-    if (msg.type === 'ANALYZE_ALL') {
-        analyzeAll(msg);
-    }
+    if (msg.type === 'ANALYZE_ALL') { analyzeAll(msg); }
 };
 
-/* ─────────────────────────────────────────────
-   ノイズ録音から18バンド別ノイズフロアを計算
-───────────────────────────────────────────── */
 function calculateNoiseFloorFromRecording(signal) {
     const bands = _cfg.bands;
     const fs    = _fs;
     const noiseFloor = new Array(bands.length);
-
     for (let bi = 0; bi < bands.length; bi++) {
         const fc = bands[bi];
-        
-        // 各バンドでBPF適用
         const sections = designButterworthBPF(fc, fs, 6, 0.05);
         const filtered = applyBiquadCascade(signal, sections);
-        
-        // RMS計算
         let sumSq = 0;
-        for (let i = 0; i < filtered.length; i++) {
-            sumSq += filtered[i] * filtered[i];
-        }
+        for (let i = 0; i < filtered.length; i++) sumSq += filtered[i] * filtered[i];
         noiseFloor[bi] = Math.sqrt(sumSq / filtered.length);
     }
-    
     return noiseFloor;
 }
 
-/* ─────────────────────────────────────────────
-   Cooley-Tukey FFT（基数2・インプレース）
-   参考: J.W.Cooley & J.W.Tukey (1965)
-───────────────────────────────────────────── */
-function nextPow2(n) {
-    let p = 1;
-    while (p < n) p <<= 1;
-    return p;
-}
+function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
 function fft(re, im) {
     const N = re.length;
-    // ビット逆順並べ替え
     for (let i = 1, j = 0; i < N; i++) {
         let bit = N >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
-        if (i < j) {
-            let t;
-            t = re[i]; re[i] = re[j]; re[j] = t;
-            t = im[i]; im[i] = im[j]; im[j] = t;
-        }
+        if (i < j) { let t; t=re[i];re[i]=re[j];re[j]=t; t=im[i];im[i]=im[j];im[j]=t; }
     }
-    // バタフライ演算
     for (let len = 2; len <= N; len <<= 1) {
         const ang = -2.0 * Math.PI / len;
-        const wRe = Math.cos(ang);
-        const wIm = Math.sin(ang);
+        const wRe = Math.cos(ang), wIm = Math.sin(ang);
         for (let i = 0; i < N; i += len) {
             let uRe = 1.0, uIm = 0.0;
             const half = len >> 1;
             for (let k = 0; k < half; k++) {
-                const m   = i + k + half;
-                const vRe = re[m] * uRe - im[m] * uIm;
-                const vIm = re[m] * uIm + im[m] * uRe;
-                re[m]   = re[i + k] - vRe;
-                im[m]   = im[i + k] - vIm;
-                re[i+k] += vRe;
-                im[i+k] += vIm;
-                const nRe = uRe * wRe - uIm * wIm;
-                uIm = uRe * wIm + uIm * wRe;
-                uRe = nRe;
+                const m = i+k+half;
+                const vRe = re[m]*uRe - im[m]*uIm, vIm = re[m]*uIm + im[m]*uRe;
+                re[m]=re[i+k]-vRe; im[m]=im[i+k]-vIm; re[i+k]+=vRe; im[i+k]+=vIm;
+                const nRe = uRe*wRe - uIm*wIm; uIm = uRe*wIm + uIm*wRe; uRe = nRe;
             }
         }
     }
@@ -1110,628 +1036,235 @@ function ifft(re, im) {
     const N = re.length;
     for (let i = 0; i < N; i++) im[i] = -im[i];
     fft(re, im);
-    for (let i = 0; i < N; i++) {
-        re[i] /=  N;
-        im[i]  = -im[i] / N;
-    }
+    for (let i = 0; i < N; i++) { re[i] /= N; im[i] = -im[i] / N; }
 }
 
-/* ─────────────────────────────────────────────
-   相互相関によるSweep開始位置検出
-   Bluetooth遅延・ジッターに対応
-   2段階スキャン: 粗いスキャン → 細かい調整
-───────────────────────────────────────────── */
 function findSweepStart(recorded, sweep) {
     const fs = _fs;
-    
-    // レイテンシーキャリブレーション結果を使用して検索範囲を絞る
     let searchStart, searchEnd;
-    
     if (_latencyOffset !== null) {
-        // キャリブレーション済み：±1.0秒検索（0.5秒から拡大）
         const searchMargin = Math.floor(1.0 * fs);
         searchStart = Math.max(0, _latencyOffset - searchMargin);
-        searchEnd = Math.min(recorded.length - sweep.length, _latencyOffset + searchMargin);
-        
-        self.postMessage({ 
-            type: 'debug', 
-            message: 'Search range (calibrated): ' + (searchStart/fs).toFixed(3) + 's - ' + (searchEnd/fs).toFixed(3) + 's (±1.0s around ' + (_latencyOffset/fs).toFixed(3) + 's)'
-        });
+        searchEnd   = Math.min(recorded.length - sweep.length, _latencyOffset + searchMargin);
     } else {
-        // キャリブレーションなし：従来の広範囲検索
-        searchStart = Math.floor(0.2 * fs); // 200msスキップ
-        searchEnd = Math.min(Math.floor(2.5 * fs), recorded.length - sweep.length);
-        
-        self.postMessage({ 
-            type: 'debug', 
-            message: 'Search range (uncalibrated): ' + (searchStart/fs).toFixed(3) + 's - ' + (searchEnd/fs).toFixed(3) + 's'
-        });
+        searchStart = Math.floor(0.2 * fs);
+        searchEnd   = Math.min(Math.floor(2.5 * fs), recorded.length - sweep.length);
     }
-    
-    if (searchEnd <= searchStart) {
-        self.postMessage({ 
-            type: 'debug', 
-            message: 'Warning: Invalid search range, using fallback'
-        });
-        return Math.floor(0.5 * fs);
-    }
-    
-    // ブロードバンドスイープ（duration > 2s）: 2.5s地点（約630Hz）から0.3s窓で相関
-    // 理由: 先頭20Hzは録音側の低域ロールオフでエネルギーが低く、相関が取れない
-    // バンド限定スイープ（duration <= 2s）: 従来通り先頭0.2s
+    if (searchEnd <= searchStart) return Math.floor(0.5 * fs);
+
     const sweepDuration = sweep.length / fs;
     let checkStart, checkLength;
     if (sweepDuration > 2.0) {
-        checkStart  = Math.round(0.15 * fs) + Math.round(2.5 * fs); // guardPre + 2.5s
+        checkStart  = Math.round(0.15 * fs) + Math.round(2.5 * fs);
         checkLength = Math.min(Math.round(0.3 * fs), sweep.length - checkStart);
     } else {
         checkStart  = 0;
         checkLength = Math.min(Math.floor(0.2 * fs), sweep.length);
     }
 
-    // Step 1: Coarse scan (100-sample steps)
-    let maxCorr = -Infinity;
-    let bestOffset = searchStart;
+    let maxCorr = -Infinity, bestOffset = searchStart;
     const searchEndAdj = Math.min(searchEnd, recorded.length - checkStart - checkLength);
-
     for (let offset = searchStart; offset < searchEndAdj; offset += 100) {
         let corr = 0;
-        for (let i = 0; i < checkLength; i++) {
-            corr += recorded[offset + checkStart + i] * sweep[checkStart + i];
-        }
-        if (corr > maxCorr) {
-            maxCorr = corr;
-            bestOffset = offset;
-        }
+        for (let i = 0; i < checkLength; i++) corr += recorded[offset+checkStart+i] * sweep[checkStart+i];
+        if (corr > maxCorr) { maxCorr = corr; bestOffset = offset; }
     }
-
-    // Step 2: Fine adjustment (1-sample steps within ±100 range)
     const fineStart = Math.max(searchStart, bestOffset - 100);
     const fineEnd   = Math.min(searchEndAdj, bestOffset + 100);
     maxCorr = -Infinity;
-
     for (let offset = fineStart; offset < fineEnd; offset++) {
         let corr = 0;
-        for (let i = 0; i < checkLength; i++) {
-            corr += recorded[offset + checkStart + i] * sweep[checkStart + i];
-        }
-        if (corr > maxCorr) {
-            maxCorr = corr;
-            bestOffset = offset;
-        }
+        for (let i = 0; i < checkLength; i++) corr += recorded[offset+checkStart+i] * sweep[checkStart+i];
+        if (corr > maxCorr) { maxCorr = corr; bestOffset = offset; }
     }
-
-    // Step 3: Calculate correlation confidence (normalized)
-    let recEnergy = 0;
-    let swpEnergy = 0;
-    for (let i = 0; i < checkLength; i++) {
-        recEnergy += recorded[bestOffset + checkStart + i] * recorded[bestOffset + checkStart + i];
-        swpEnergy += sweep[checkStart + i] * sweep[checkStart + i];
-    }
-
-    const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * swpEnergy) + 1e-10);
-    
-    // Debug log
-    self.postMessage({ 
-        type: 'debug', 
-        message: 'Correlation: offset=' + bestOffset + ' samples (' + (bestOffset/fs).toFixed(3) + 's), confidence=' + normalizedCorr.toFixed(3)
-    });
-    
-    if (normalizedCorr < 0.3) {
-        self.postMessage({ 
-            type: 'debug', 
-            message: 'Warning: Low correlation confidence (' + normalizedCorr.toFixed(3) + ' < 0.3)' 
-        });
-    }
-    
     return bestOffset;
 }
 
-/* ─────────────────────────────────────────────
-   逆畳み込みによるインパルス応答(IR)抽出
-   H(f) = Y(f) · X*(f) / (|X(f)|² + ε)
-   正規化逆フィルタ（Wienerフィルタ形式）
-   ISO 3382-1:2009 Annex A準拠
-───────────────────────────────────────────── */
-function extractIR(recorded, sweep) {
-    const N = nextPow2((recorded.length + sweep.length - 1) * 2);
-    const yRe = new Float64Array(N);
-    const yIm = new Float64Array(N);
-    const xRe = new Float64Array(N);
-    const xIm = new Float64Array(N);
-
-    for (let i = 0; i < recorded.length; i++) yRe[i] = recorded[i];
-    for (let i = 0; i < sweep.length;    i++) xRe[i] = sweep[i];
-
-    fft(yRe, yIm);
-    fft(xRe, xIm);
-
-    // 正規化: ゼロ除算・低エネルギー帯域の発散を防止
-    const eps = 1e-9;
-    const hRe = new Float64Array(N);
-    const hIm = new Float64Array(N);
-    for (let i = 0; i < N; i++) {
-        const denom = xRe[i]*xRe[i] + xIm[i]*xIm[i] + eps;
-        hRe[i] = (yRe[i]*xRe[i] + yIm[i]*xIm[i]) / denom;
-        hIm[i] = (yIm[i]*xRe[i] - yRe[i]*xIm[i]) / denom;
-    }
-
-    ifft(hRe, hIm);
-
-    // 実部のみ（インパルス応答）を録音長で切り取って返却
-    return new Float64Array(hRe.buffer, 0, recorded.length);
-}
-
-/* ─────────────────────────────────────────────
-   Farina法 インパルス応答抽出
-   参考: Farina (2000) "Simultaneous measurement of impulse response
-         and distortion with a swept-sine technique"
-   逆フィルタ = 時間反転スイープ × exp(-n·ln(f2/f1)/N)
-   FFT乗算（除算ではない）により平坦スペクトルIRを得る
-   ─────────────────────────────────────────────── */
 function extractIRFarina(recorded, sweep, fLow, fHigh, durationSec) {
-    const fs       = _fs;
-    const guardPre = Math.round(0.15 * fs);
-    const N_sweep  = Math.round(durationSec * fs);
-    const k        = Math.log(fHigh / fLow); // ln(f2/f1)
-
-    // ── Farina逆フィルタ生成 ──
-    // inv[n] = sweep[guardPre + N_sweep - 1 - n] × exp(-n·k/N_sweep)
-    // 長さ: N_sweep（ガードバンドを含まない）
+    const fs      = _fs;
+    const guardPre= Math.round(0.15 * fs);
+    const N_sweep = Math.round(durationSec * fs);
+    const k       = Math.log(fHigh / fLow);
     const inv = new Float64Array(N_sweep);
     for (let n = 0; n < N_sweep; n++) {
         const srcIdx = guardPre + (N_sweep - 1 - n);
         const val    = srcIdx < sweep.length ? sweep[srcIdx] : 0;
         inv[n]       = val * Math.exp(-n * k / N_sweep);
     }
-
-    // ── FFT乗算（時間領域たたみ込み）──
-    // H(ω) = Y(ω) × INV(ω)  ← 除算ではなく乗算
     const N = nextPow2(recorded.length + N_sweep);
-    const yRe = new Float64Array(N);
-    const xRe = new Float64Array(N);
-    const yIm = new Float64Array(N);
-    const xIm = new Float64Array(N);
-
-    for (let i = 0; i < recorded.length; i++) yRe[i] = recorded[i];
-    for (let i = 0; i < N_sweep; i++)         xRe[i] = inv[i];
-
-    fft(yRe, yIm);
-    fft(xRe, xIm);
-
-    const hRe = new Float64Array(N);
-    const hIm = new Float64Array(N);
-    for (let i = 0; i < N; i++) {
-        hRe[i] = yRe[i]*xRe[i] - yIm[i]*xIm[i]; // 複素乗算
-        hIm[i] = yRe[i]*xIm[i] + yIm[i]*xRe[i];
-    }
-
-    ifft(hRe, hIm);
-
-    // ── IR切り出し ──
-    // 直達音ピーク位置: guardPre + N_sweep - 1
-    // 50ms前バッファを設けてcalcSNRのピーク探索範囲（先頭0.1s）内に収める
-    const preBuf    = Math.round(0.05 * fs);
-    const peakOff   = guardPre + N_sweep - 1;
-    const startIdx  = Math.max(0, peakOff - preBuf);
-    const irLength  = Math.min(N - startIdx, recorded.length);
-
+    const yRe=new Float64Array(N), xRe=new Float64Array(N), yIm=new Float64Array(N), xIm=new Float64Array(N);
+    for (let i=0;i<recorded.length;i++) yRe[i]=recorded[i];
+    for (let i=0;i<N_sweep;i++)         xRe[i]=inv[i];
+    fft(yRe,yIm); fft(xRe,xIm);
+    const hRe=new Float64Array(N), hIm=new Float64Array(N);
+    for (let i=0;i<N;i++) { hRe[i]=yRe[i]*xRe[i]-yIm[i]*xIm[i]; hIm[i]=yRe[i]*xIm[i]+yIm[i]*xRe[i]; }
+    ifft(hRe,hIm);
+    const preBuf   = Math.round(0.05 * fs);
+    const peakOff  = guardPre + N_sweep - 1;
+    const startIdx = Math.max(0, peakOff - preBuf);
+    const irLength = Math.min(N - startIdx, recorded.length);
     const ir = new Float64Array(irLength);
-    for (let i = 0; i < irLength; i++) ir[i] = hRe[startIdx + i];
-
-    self.postMessage({ type: 'debug',
-        message: '[Farina] peakOff=' + peakOff + '(' + (peakOff/fs).toFixed(3) + 's)' +
-                 ' startIdx=' + startIdx + ' irLength=' + irLength +
-                 ' (' + (irLength/fs).toFixed(2) + 's)'
-    });
-
+    for (let i=0;i<irLength;i++) ir[i]=hRe[startIdx+i];
     return ir;
 }
 
-/* ─────────────────────────────────────────────
-   6次 Butterworth BPF（2次Biquad × 3段カスケード）
-   ANSI S1.11 / ISO 3382準拠
-   カスケード補正: Q_sec = Q_target / sqrt(2^(1/k) - 1)
-   全セクション同一係数（center fc共通）
-───────────────────────────────────────────── */
 function designButterworthBPF(fc, fs, order, margin) {
-    const nSec = order / 2; // 6次 → 3セクション
-
-    // 1/3オクターブ帯域幅（5%内側に絞る）
-    const fL = (fc / Math.SQRT2) * (1.0 + margin);
-    const fH = (fc * Math.SQRT2) * (1.0 - margin);
+    const nSec   = order / 2;
+    const fL     = (fc / Math.SQRT2) * (1.0 + margin);
+    const fH     = (fc * Math.SQRT2) * (1.0 - margin);
     const Q_target = fc / (fH - fL);
-
-    // カスケード補正: k段で所定の-3dB帯域幅を保証
-    const Q_sec = Q_target / Math.sqrt(Math.pow(2, 1.0 / nSec) - 1.0);
-
-    const w0    = 2.0 * Math.PI * fc / fs;
-    const alpha = Math.sin(w0) / (2.0 * Q_sec);
-    const cosW0 = Math.cos(w0);
-    const a0    = 1.0 + alpha;
-
-    const sec = {
-        b0:  alpha / a0,
-        b1:  0.0,
-        b2: -alpha / a0,
-        a1: -2.0 * cosW0 / a0,
-        a2: (1.0 - alpha) / a0
-    };
-
-    // 3セクションは同一係数
-    return [{ ...sec }, { ...sec }, { ...sec }];
+    const Q_sec    = Q_target / Math.sqrt(Math.pow(2, 1.0 / nSec) - 1.0);
+    const w0       = 2.0 * Math.PI * fc / fs;
+    const alpha    = Math.sin(w0) / (2.0 * Q_sec);
+    const cosW0    = Math.cos(w0);
+    const a0       = 1.0 + alpha;
+    const sec = { b0: alpha/a0, b1: 0.0, b2: -alpha/a0, a1: -2.0*cosW0/a0, a2: (1.0-alpha)/a0 };
+    return [{...sec},{...sec},{...sec}];
 }
 
-/* ─────────────────────────────────────────────
-   Biquadカスケード適用（時間域IIRフィルタ）
-───────────────────────────────────────────── */
 function applyBiquadCascade(signal, sections) {
     let buf = new Float64Array(signal);
     for (const s of sections) {
         const out = new Float64Array(buf.length);
-        let x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0;
-        for (let i = 0; i < buf.length; i++) {
-            const x0 = buf[i];
-            const y0 = s.b0*x0 + s.b1*x1 + s.b2*x2
-                     - s.a1*y1 - s.a2*y2;
-            out[i] = y0;
-            x2 = x1; x1 = x0;
-            y2 = y1; y1 = y0;
+        let x1=0,x2=0,y1=0,y2=0;
+        for (let i=0;i<buf.length;i++) {
+            const x0=buf[i], y0=s.b0*x0+s.b1*x1+s.b2*x2-s.a1*y1-s.a2*y2;
+            out[i]=y0; x2=x1;x1=x0;y2=y1;y1=y0;
         }
-        buf = out;
+        buf=out;
     }
     return buf;
 }
 
-/* ─────────────────────────────────────────────
-   SNR計算
-   IRピーク付近エネルギー vs 末尾ノイズフロアの
-   エネルギー密度比（サンプル数正規化）
-───────────────────────────────────────────── */
-/* ─────────────────────────────────────────────
-   SNR計算
-   事前測定したノイズフロアがあればそれを使用
-   なければIR末尾から推定（従来方式）
-───────────────────────────────────────────── */
 function calcSNR(ir, bandIndex) {
     const N = ir.length;
-
-    // ピーク探索を先頭0.1s（4800サンプル @48kHz）以内に限定
-    // 理由: 直達音はIR先頭付近に必ず存在する。グローバル最大値を使うと
-    //       deconvolutionアーティファクトの偽ピークを拾う場合がある。
     const peakSearchEnd = Math.min(N, Math.round(_fs * 0.1));
-    let peakIdx = 0, peakVal = 0;
-    for (let i = 0; i < peakSearchEnd; i++) {
-        const v = Math.abs(ir[i]);
-        if (v > peakVal) { peakVal = v; peakIdx = i; }
-    }
-
-    // ピーク後2%窓（≒85ms @48kHz）で信号RMSを計算
+    let peakIdx=0, peakVal=0;
+    for (let i=0;i<peakSearchEnd;i++) { const v=Math.abs(ir[i]); if(v>peakVal){peakVal=v;peakIdx=i;} }
     const winSamples = Math.max(10, Math.floor(N * 0.02));
     const irEnd      = Math.min(N, peakIdx + winSamples);
     const irCount    = irEnd - peakIdx;
     if (irCount <= 0) return { snr: 60, peakIdx: 0 };
-
-    let irE = 0;
-    for (let i = peakIdx; i < irEnd; i++) irE += ir[i]*ir[i];
-    const irRMS = Math.sqrt(irE / irCount);
-
-    // ノイズRMS: 事前キャリブレーション値を使用（最も信頼できる）
-    // フォールバック: IR末尾推定（アーティファクトの影響を受けるため参考値）
+    let irE=0;
+    for (let i=peakIdx;i<irEnd;i++) irE+=ir[i]*ir[i];
+    const irRMS = Math.sqrt(irE/irCount);
     let noiseRMS;
     if (_noiseFloor && bandIndex >= 0 && bandIndex < _noiseFloor.length) {
         noiseRMS = _noiseFloor[bandIndex];
     } else {
-        const nStart = Math.floor(N * 0.75);
-        let nE = 0;
-        for (let i = nStart; i < N; i++) nE += ir[i]*ir[i];
-        noiseRMS = Math.sqrt(nE / (N - nStart));
+        const nStart=Math.floor(N*0.75); let nE=0;
+        for (let i=nStart;i<N;i++) nE+=ir[i]*ir[i];
+        noiseRMS=Math.sqrt(nE/(N-nStart));
     }
-
     if (noiseRMS < 1e-20) return { snr: 60, peakIdx: 0, noiseRMS: 1e-10 };
-    const snr = 20.0 * Math.log10(irRMS / noiseRMS);
-    return { snr, peakIdx, noiseRMS };
+    return { snr: 20.0*Math.log10(irRMS/noiseRMS), peakIdx, noiseRMS };
 }
 
-/* ─────────────────────────────────────────────
-   シュレーダー積分（後退累積 + 動的打ち切り）
-   EDC(t) = ∫[t→∞] h²(τ)dτ
-   打ち切り: ノイズ密度の3倍を下回った時点
-───────────────────────────────────────────── */
 function schroederIntegral(ir, snr, peakIdx, envNoiseRMS) {
-    // ISO 3382-2 Annex A準拠: Lundeby法によるノイズ交点検出 + ノイズ補正後退積分
-    // 参考: Lundeby et al. (1995) JASA 98(6), ISO 3382-2:2008 Annex A
-    //
-    // 処理フロー:
-    //   1. IR末尾10%からノイズ分散(noisePower)を推定
-    //   2. 後退積分 cum[i] = Σ ir[k]² (k=i→N-1)
-    //   3. Lundeby交点: cum[i] ≈ noisePower×(N-i) を満たす最初の点
-    //   4. Annex A補正: corrected[i] = cum[i] - noisePower×(N-i)
-    //   5. corrected[i]≤0 になった点で積分終了 → EDC生成
-    const N  = ir.length;
-    const fs = _fs;
-
-    // ── Step 1: 環境ノイズ分散を推定 ──
-    // envNoiseRMS（calcSNRが返すIR末尾75%ベース）を優先使用。
-    // これはFarina IR振幅スケールと一致しており、Farina数値残留ノイズより
-    // 数桁大きい環境ノイズの実態を反映している。
-    // フォールバック: IR末尾10%推定（envNoiseRMSが未提供の場合）
+    const N=ir.length, fs=_fs;
     let noisePower;
     if (envNoiseRMS && envNoiseRMS > 1e-20) {
         noisePower = envNoiseRMS * envNoiseRMS;
     } else {
-        const noiseStart = Math.floor(N * 0.90);
-        let noiseSum = 0;
-        for (let i = noiseStart; i < N; i++) noiseSum += ir[i] * ir[i];
-        noisePower = noiseSum / (N - noiseStart);
+        const noiseStart=Math.floor(N*0.90); let noiseSum=0;
+        for (let i=noiseStart;i<N;i++) noiseSum+=ir[i]*ir[i];
+        noisePower=noiseSum/(N-noiseStart);
     }
-
-    if (noisePower < 1e-30) {
-        self.postMessage({ type: 'debug',
-            message: '[Schroeder] noisePower < 1e-30 → 測定不能'
-        });
-        return null;
+    if (noisePower < 1e-30) return null;
+    const cum=new Float64Array(N);
+    cum[N-1]=ir[N-1]*ir[N-1];
+    for (let i=N-2;i>=0;i--) cum[i]=cum[i+1]+ir[i]*ir[i];
+    let lundebyIdx=N-1;
+    for (let i=peakIdx;i<N;i++) { if(cum[i]<=noisePower*(N-i)){lundebyIdx=i;break;} }
+    const corrPeak=cum[peakIdx]-noisePower*(N-peakIdx);
+    if (corrPeak<=0) return null;
+    const edcDB=new Float64Array(N).fill(-999);
+    let truncIdx=lundebyIdx;
+    for (let i=peakIdx;i<=lundebyIdx;i++) {
+        const corrected=cum[i]-noisePower*(N-i);
+        if(corrected<=0){truncIdx=i;break;}
+        edcDB[i]=10.0*Math.log10(corrected/corrPeak);
     }
-
-    // ── Step 2: 後退積分 ──
-    const cum = new Float64Array(N);
-    cum[N - 1] = ir[N - 1] * ir[N - 1];
-    for (let i = N - 2; i >= 0; i--) cum[i] = cum[i + 1] + ir[i] * ir[i];
-
-    // ── Step 3: Lundeby交点検出 ──
-    // cum[i] <= noisePower * (N - i) を満たす最初のインデックス
-    // = 「残りの積分がすべてノイズエネルギーで説明できる点」
-    let lundebyIdx = N - 1;
-    for (let i = peakIdx; i < N; i++) {
-        if (cum[i] <= noisePower * (N - i)) {
-            lundebyIdx = i;
-            break;
-        }
-    }
-
-    // ── Step 4: Annex A補正 + EDC生成 ──
-    // corrected[i] = cum[i] - noisePower * (N - i)
-    // corrected[peakIdx] > 0 が必須（信号がノイズより十分大きい）
-    const corrPeak = cum[peakIdx] - noisePower * (N - peakIdx);
-    if (corrPeak <= 0) {
-        self.postMessage({ type: 'debug',
-            message: '[Schroeder] Annex A補正失敗: corrected[peakIdx]=' +
-                     corrPeak.toExponential(3) + ' <= 0 → 信号がノイズに埋没'
-        });
-        return null;
-    }
-
-    const edcDB  = new Float64Array(N).fill(-999);
-    let truncIdx = lundebyIdx; // Lundeby交点を初期打ち切り点とする
-
-    for (let i = peakIdx; i <= lundebyIdx; i++) {
-        const corrected = cum[i] - noisePower * (N - i);
-        if (corrected <= 0) {
-            // 補正後に負になった = ノイズが信号を超えた点
-            truncIdx = i;
-            break;
-        }
-        edcDB[i] = 10.0 * Math.log10(corrected / corrPeak);
-    }
-
-    // 診断ログ
-    const noisedB     = 10 * Math.log10(noisePower / corrPeak);
-    const peakSec     = (peakIdx    / fs).toFixed(3);
-    const lundbySec   = (lundebyIdx / fs).toFixed(3);
-    const truncSec    = (truncIdx   / fs).toFixed(3);
-    const lastValidDB = edcDB[truncIdx - 1] > -999 ? edcDB[truncIdx - 1].toFixed(1) : 'N/A';
-    self.postMessage({ type: 'debug',
-        message: '[Schroeder/Lundeby] peakIdx=' + peakIdx + '(' + peakSec + 's)' +
-                 ' lundebyIdx=' + lundebyIdx + '(' + lundbySec + 's)' +
-                 ' truncIdx=' + truncIdx + '(' + truncSec + 's)' +
-                 ' noisePower=' + noisePower.toExponential(3) +
-                 ' noiseLevel=' + noisedB.toFixed(1) + 'dB' +
-                 ' lastValidDB=' + lastValidDB + 'dB'
-    });
-
     return { edcDB, truncIdx, peakIdx };
 }
 
-/* ─────────────────────────────────────────────
-   RT計算（最小二乗線形回帰）
-   T60→T30→T20 フォールバック
-   ISO 3382-2:2008 準拠
-───────────────────────────────────────────── */
 function calcRT(edcDB, truncIdx, peakIdx, fs) {
-    // 物理的妥当性の上下限
-    // 上限5.0s: 小〜中規模室内でこれを超える値は背景ノイズ誤認
-    // 下限0.05s: 50ms未満は測定ノイズ由来の誤検出
-    const RT_MAX = 5.0;
-    // RT_MIN = 0.03s: BT積基準(B×T>16)より1kHz以上では30ms以上が有効
-    // 極端に短い場合(30-50ms)は表示しつつ精度注意を促す
-    const RT_MIN = 0.03;
-    // R²_MIN = 0.80: Lundeby補正後EDCは直線性が向上するため0.75→0.80に引き上げ
-    const R2_MIN = 0.80;
-
+    const RT_MAX=5.0, RT_MIN=0.03, R2_MIN=0.80;
     function validate(result, method) {
         if (!result) return null;
-        const { rt, r2 } = result;
-        if (rt < RT_MIN || rt > RT_MAX) {
-            self.postMessage({ type: 'debug',
-                message: '[calcRT] ' + method + ' rejected: rt=' + rt.toFixed(3) + 's out of range'
-            });
-            return null;
-        }
-        if (r2 < R2_MIN) {
-            self.postMessage({ type: 'debug',
-                message: '[calcRT] ' + method + ' rejected: R²=' + r2.toFixed(3) + ' < ' + R2_MIN
-            });
-            return null;
-        }
-        return { rt60: rt, method, r2 };
+        const {rt,r2}=result;
+        if (rt<RT_MIN||rt>RT_MAX) return null;
+        if (r2<R2_MIN) return null;
+        return {rt60:rt,method,r2};
     }
-
-    // 走査上限: RT_MAX×2.0秒
-    // Annex A補正後のEDCはフラット末尾がゆっくり目標dBに達するため、
-    // この上限でlsqRTの回帰対象から除外する
-    const maxSearchSec = RT_MAX * 2.0;
-
-    // T60: -5dB → -65dB
-    const v60 = validate(lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -65, maxSearchSec), 'T60');
-    if (v60) return v60;
-
-    // T30: -5dB → -35dB → ×2外挿
-    const r30 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -35, maxSearchSec);
-    if (r30) {
-        const v30 = validate({ rt: r30.rt * 2.0, r2: r30.r2 }, 'T30');
-        if (v30) return v30;
-    }
-
-    // T20: -5dB → -25dB → ×3外挿
-    const r20 = lsqRT(edcDB, truncIdx, peakIdx, fs, -5, -25, maxSearchSec);
-    if (r20) {
-        const v20 = validate({ rt: r20.rt * 3.0, r2: r20.r2 }, 'T20');
-        if (v20) return v20;
-    }
-
+    const maxSearchSec=RT_MAX*2.0;
+    const v60=validate(lsqRT(edcDB,truncIdx,peakIdx,fs,-5,-65,maxSearchSec),'T60');
+    if(v60) return v60;
+    const r30=lsqRT(edcDB,truncIdx,peakIdx,fs,-5,-35,maxSearchSec);
+    if(r30){const v30=validate({rt:r30.rt*2.0,r2:r30.r2},'T30');if(v30) return v30;}
+    const r20=lsqRT(edcDB,truncIdx,peakIdx,fs,-5,-25,maxSearchSec);
+    if(r20){const v20=validate({rt:r20.rt*3.0,r2:r20.r2},'T20');if(v20) return v20;}
     return null;
 }
 
 function lsqRT(edcDB, truncIdx, peakIdx, fs, startDB, endDB, maxSearchSec) {
-    // ループを peakIdx 起点にする
-    // peakIdx 以前の edcDB は -999（未計算）のため、0から走査すると
-    // -999 <= -5 が真になり s=0, e=1 が即確定してしまい全バンド失敗する
-    //
-    // searchEnd: Annex A補正後のEDCは残響消滅後もゆっくり目標dBに達するため
-    // 物理的に意味のある最大走査範囲（RT_MAX×2.0秒）で打ち切る。
-    // 例: RT_MAX=5s → maxSearchSec=10s → 10s以降のフラット区間を回帰対象外にする
-    const searchEnd = (maxSearchSec != null)
-        ? Math.min(truncIdx, peakIdx + Math.floor(maxSearchSec * fs))
-        : truncIdx;
-
-    let s = -1, e = -1;
-    for (let i = peakIdx; i < searchEnd; i++) {
-        if (s < 0 && edcDB[i] <= startDB) { s = i; continue; }
-        if (s >= 0 && edcDB[i] <= endDB)  { e = i; break; }
+    const searchEnd=(maxSearchSec!=null)?Math.min(truncIdx,peakIdx+Math.floor(maxSearchSec*fs)):truncIdx;
+    let s=-1,e=-1;
+    for (let i=peakIdx;i<searchEnd;i++) {
+        if(s<0&&edcDB[i]<=startDB){s=i;continue;}
+        if(s>=0&&edcDB[i]<=endDB){e=i;break;}
     }
-    if (s < 0 || e < 0 || (e - s) < 10) return null;
-
-    let n = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-    for (let i = s; i <= e; i++) {
-        const t = i / fs;
-        sumX  += t;
-        sumY  += edcDB[i];
-        sumXY += t * edcDB[i];
-        sumXX += t * t;
-        n++;
-    }
-    const denom = n * sumXX - sumX * sumX;
-    if (Math.abs(denom) < 1e-15) return null;
-
-    const slope     = (n * sumXY - sumX * sumY) / denom;
-    const intercept = (sumY - slope * sumX) / n;
-    if (slope >= 0) return null; // 減衰していない
-
-    // 決定係数 R² を計算
-    const meanY = sumY / n;
-    let ssTot = 0, ssRes = 0;
-    for (let i = s; i <= e; i++) {
-        const t    = i / fs;
-        const pred = slope * t + intercept;
-        ssTot += (edcDB[i] - meanY) * (edcDB[i] - meanY);
-        ssRes += (edcDB[i] - pred)  * (edcDB[i] - pred);
-    }
-    const r2 = ssTot > 0 ? 1.0 - ssRes / ssTot : 0;
-
-    return { rt: (endDB - startDB) / slope, r2 };
+    if(s<0||e<0||(e-s)<10) return null;
+    let n=0,sumX=0,sumY=0,sumXY=0,sumXX=0;
+    for(let i=s;i<=e;i++){const t=i/fs;sumX+=t;sumY+=edcDB[i];sumXY+=t*edcDB[i];sumXX+=t*t;n++;}
+    const denom=n*sumXX-sumX*sumX;
+    if(Math.abs(denom)<1e-15) return null;
+    const slope=(n*sumXY-sumX*sumY)/denom;
+    const intercept=(sumY-slope*sumX)/n;
+    if(slope>=0) return null;
+    const meanY=sumY/n;
+    let ssTot=0,ssRes=0;
+    for(let i=s;i<=e;i++){const t=i/fs,pred=slope*t+intercept;ssTot+=(edcDB[i]-meanY)**2;ssRes+=(edcDB[i]-pred)**2;}
+    const r2=ssTot>0?1.0-ssRes/ssTot:0;
+    return {rt:(endDB-startDB)/slope,r2};
 }
 
-/* ─────────────────────────────────────────────
-   メイン解析関数
-───────────────────────────────────────────── */
 function analyzeAll(msg) {
-    // ── 単一ブロードバンドスイープからの全バンド解析 ──
-    // ISO 3382-2準拠: Farina法1回のdeconvolution → 全バンド共通IR → BPF×18
-    const { recorded, sweep, fLow, fHigh, durationSec } = msg;
-    const fs       = _fs;
-    const minSnr   = (_cfg && _cfg.analysis) ? _cfg.analysis.minSnr   : 15.0;
-    const bpfOrder = (_cfg && _cfg.analysis) ? _cfg.analysis.bpfOrder :  6;
-    const bpfMargin= (_cfg && _cfg.analysis) ? _cfg.analysis.bpfMargin: 0.05;
-    const bands    = (_cfg && _cfg.bands)    ? _cfg.bands : [100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000];
-
-    self.postMessage({ type: 'debug', message: 'analyzeAll: rec=' + recorded.byteLength + 'bytes, sweep=' + sweep.byteLength + 'bytes' });
-
+    const {recorded,sweep,fLow,fHigh,durationSec}=msg;
+    const fs=_fs;
+    const minSnr   =(_cfg&&_cfg.analysis)?_cfg.analysis.minSnr:15.0;
+    const bpfOrder =(_cfg&&_cfg.analysis)?_cfg.analysis.bpfOrder:6;
+    const bpfMargin=(_cfg&&_cfg.analysis)?_cfg.analysis.bpfMargin:0.05;
+    const bands    =(_cfg&&_cfg.bands)?_cfg.bands:[100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000];
     try {
-        const recF32 = new Float32Array(recorded);
-        const swpF32 = new Float32Array(sweep);
-
-        // ① 相互相関でSweep開始位置を一度だけ検出
-        const sweepStart = findSweepStart(recF32, swpF32);
-        self.postMessage({ type: 'debug', message: 'findSweepStart: offset=' + sweepStart + ' (' + (sweepStart/fs).toFixed(3) + 's)' });
-
-        // ② Sweep本体＋残響区間を切り出し（全バンド共通）
-        const reverbTail   = Math.floor(5.0 * fs);   // 残響取得時間 5秒
-        const requiredLen  = swpF32.length + reverbTail;
-        const endPos       = Math.min(sweepStart + requiredLen, recF32.length);
-        const trimmed      = recF32.slice(sweepStart, endPos);
-
-        // ③ Farina法deconvolution → 全バンド共通IR
-        // extractIRFarina: 時間反転スイープ×exp重み付けの逆フィルタをFFT乗算
-        const ir = extractIRFarina(trimmed, swpF32, fLow, fHigh, durationSec);
-        self.postMessage({ type: 'debug', message: 'extractIRFarina done: ir.length=' + ir.length });
-
-        // ④ 各バンドでBPF → SNR → Schroeder（ISO補正）→ calcRT
-        const thirdResults  = new Array(bands.length).fill(null);
-        const methodResults = new Array(bands.length).fill(null);
-        const r2Results     = new Array(bands.length).fill(null);
-
-        for (let bi = 0; bi < bands.length; bi++) {
-            const band = bands[bi];
-
-            // 進捗通知
-            self.postMessage({ type: 'bandProgress', band, index: bi, total: bands.length });
-
-            // BPF適用
-            const sections   = designButterworthBPF(band, fs, bpfOrder, bpfMargin);
-            const irFiltered = applyBiquadCascade(ir, sections);
-
-            // SNR計算（bandIndex=-1 → IR末尾75%からノイズ推定を強制）
-            // _noiseFloor（生マイクRMS）はFarina IR振幅スケールと異なるため使用しない
-            const { snr, peakIdx, noiseRMS } = calcSNR(irFiltered, -1);
-
-            self.postMessage({ type: 'debug',
-                message: band + 'Hz: SNR=' + snr.toFixed(1) + 'dB peakIdx=' + peakIdx +
-                         '(' + (peakIdx/fs).toFixed(3) + 's) noiseRMS=' + noiseRMS.toExponential(3)
-            });
-
-            if (snr < minSnr) {
-                self.postMessage({ type: 'debug', message: band + 'Hz: SNR不足 → skip' });
-                continue;
-            }
-
-            // Schroeder積分: calcSNRの環境ノイズ推定値をLundeby交点検出に使用
-            const schResult = schroederIntegral(irFiltered, snr, peakIdx, noiseRMS);
-            if (!schResult) {
-                self.postMessage({ type: 'debug', message: band + 'Hz: Schroeder補正失敗 → skip' });
-                continue;
-            }
-            const { edcDB, truncIdx } = schResult;
-
-            // RT計算
-            const rtResult = calcRT(edcDB, truncIdx, peakIdx, fs);
-            if (!rtResult) {
-                self.postMessage({ type: 'debug', message: band + 'Hz: RT計算失敗 → skip' });
-                continue;
-            }
-
-            thirdResults[bi]  = +rtResult.rt60.toFixed(3);
-            methodResults[bi] = rtResult.method;
-            r2Results[bi]     = +rtResult.r2.toFixed(3);
-            self.postMessage({ type: 'debug',
-                message: band + 'Hz: RT60=' + thirdResults[bi] + 's (' + rtResult.method + ', R²=' + rtResult.r2.toFixed(3) + ')'
-            });
+        const recF32=new Float32Array(recorded), swpF32=new Float32Array(sweep);
+        const sweepStart=findSweepStart(recF32,swpF32);
+        const reverbTail=Math.floor(5.0*fs);
+        const endPos=Math.min(sweepStart+swpF32.length+reverbTail,recF32.length);
+        const trimmed=recF32.slice(sweepStart,endPos);
+        const ir=extractIRFarina(trimmed,swpF32,fLow,fHigh,durationSec);
+        const thirdResults=new Array(bands.length).fill(null);
+        const methodResults=new Array(bands.length).fill(null);
+        const r2Results=new Array(bands.length).fill(null);
+        for (let bi=0;bi<bands.length;bi++) {
+            const band=bands[bi];
+            self.postMessage({type:'bandProgress',band,index:bi,total:bands.length});
+            const sections=designButterworthBPF(band,fs,bpfOrder,bpfMargin);
+            const irFiltered=applyBiquadCascade(ir,sections);
+            const {snr,peakIdx,noiseRMS}=calcSNR(irFiltered,-1);
+            if(snr<minSnr) continue;
+            const schResult=schroederIntegral(irFiltered,snr,peakIdx,noiseRMS);
+            if(!schResult) continue;
+            const {edcDB,truncIdx}=schResult;
+            const rtResult=calcRT(edcDB,truncIdx,peakIdx,fs);
+            if(!rtResult) continue;
+            thirdResults[bi]=+rtResult.rt60.toFixed(3);
+            methodResults[bi]=rtResult.method;
+            r2Results[bi]=+rtResult.r2.toFixed(3);
         }
-
-        // ⑤ 全バンド完了 → result送信
-        self.postMessage({ type: 'result', thirdResults, methodResults, r2Results });
-
-    } catch (err) {
-        self.postMessage({ type: 'error', message: 'analyzeAll失敗: ' + err.message });
+        self.postMessage({type:'result',thirdResults,methodResults,r2Results});
+    } catch(err) {
+        self.postMessage({type:'error',message:'analyzeAll失敗: '+err.message});
     }
 }
 `;
@@ -1742,165 +1275,110 @@ function initWorker() {
     const blob = new Blob([workerCode], { type: 'text/javascript' });
     measurementWorker = new Worker(URL.createObjectURL(blob));
     measurementWorker.onmessage = function(e) {
-        // デバッグ：全メッセージをログ
-        console.log('=== Worker Message Received ===', e.data.type);
-        
-        if (e.data.type === 'debug') {
-            // 3つの方法でログ出力
-            console.log('[Worker] ' + e.data.message);
-            console.info('[Worker-INFO] ' + e.data.message);
-            console.warn('[Worker-DEBUG] ' + e.data.message);
-            return;
-        }
+        if (e.data.type === 'debug') { console.log('[Worker] ' + e.data.message); return; }
         if (e.data.type === 'result') handleMeasurementResult(e.data);
-        if (e.data.type === 'error') handleMeasurementError(e.data.message);
+        if (e.data.type === 'error')  handleMeasurementError(e.data.message);
     };
     measurementWorker.onerror = function(err) { console.error('Worker error:', err); };
 }
 
-// ─────────────────────────────────────────────────────
-// Part 5: 測定結果ハンドラ
-// 18バンド（1/3oct）→ 6バンド（オクターブ）集約
-// ─────────────────────────────────────────────────────
 function handleMeasurementResult(data) {
-    const statusEl   = document.getElementById('measureStatus');
-    const startBtn   = document.getElementById('startMeasBtn');
+    const statusEl  = document.getElementById('measureStatus');
+    const startBtn  = document.getElementById('startMeasBtn');
     const progressEl = document.getElementById('measureProgress');
-    const warnEl     = document.getElementById('remeasureWarning');
-
-    // UI初期化
+    const warnEl    = document.getElementById('remeasureWarning');
     startBtn.disabled = false;
     progressEl.style.display = 'none';
     document.getElementById('recordingAlert').classList.remove('active');
     warnEl.style.display = 'none';
 
-    const thirdResults = data.thirdResults; // 18本の1/3オクターブRT60配列（nullあり）
+    const thirdResults = data.thirdResults;
     const octaveDefs   = MEASUREMENT_CONFIG.octaveBands;
     const octaveResults = new Array(6).fill(null);
+    let validOctaveCount = 0;
+    const missingBands = [], measuredBands = [];
 
-    let validOctaveCount  = 0;
-    let totalOctaveCount  = 6;
-    const missingBands    = [];
-    const measuredBands   = [];
-
-    // ── 18バンド → 6オクターブバンドに集約（null=欠損のまま）──
-    // Sabine補完は行わない。測定できなかったバンドはnullとして扱う。
     for (let i = 0; i < octaveDefs.length; i++) {
         const group  = octaveDefs[i];
-        const values = group.indices
-            .map(idx => thirdResults[idx])
-            .filter(v => v !== null && v > 0);
-
+        const values = group.indices.map(idx => thirdResults[idx]).filter(v => v !== null && v > 0);
         if (values.length > 0) {
-            // 有効な1/3octバンドの算術平均をオクターブバンド値とする
-            octaveResults[i] = values.reduce((s, v) => s + v, 0) / values.length;
+            octaveResults[i] = values.reduce((s,v) => s+v, 0) / values.length;
             validOctaveCount++;
             measuredBands.push(group.label);
         } else {
-            // nullのまま保持（補完しない）
             octaveResults[i] = null;
             missingBands.push(group.label);
         }
     }
 
-    // ── methodResults を受け取る ──
     const methodResults = data.methodResults || new Array(18).fill(null);
-    window._r2Results = data.r2Results || new Array(18).fill(null);
-    window._methodResultsAll = data.methodResults || new Array(18).fill(null);
+    window._r2Results       = data.r2Results    || new Array(18).fill(null);
+    window._methodResultsAll = methodResults;
 
-    // ── 500Hz(index2) + 1kHz(index3) 両方欠損 → 音響評価として失敗 ──
-    const miss500  = octaveResults[2] === null;
-    const miss1k   = octaveResults[3] === null;
+    const miss500 = octaveResults[2] === null;
+    const miss1k  = octaveResults[3] === null;
     if (miss500 && miss1k) {
         statusEl.textContent = '❌ 測定失敗: 500Hz・1kHz が取得できませんでした';
         statusEl.className = 'status-msg error';
-        document.getElementById('warningReason').textContent =
-            '音響評価の中核帯域（500Hz・1kHz）が両方取得できませんでした。\n' +
-            'スピーカー音量を上げるか、外部スピーカーで再測定してください。';
-        warnEl.className = 'warning-box';
-        warnEl.style.display = 'block';
-        startBtn.disabled = false;
-        return;
+        document.getElementById('warningReason').textContent = '音響評価の中核帯域（500Hz・1kHz）が両方取得できませんでした。スピーカー音量を上げるか、外部スピーカーで再測定してください。';
+        warnEl.className = 'warning-box'; warnEl.style.display = 'block';
+        startBtn.disabled = false; return;
     }
-
-    // ── 0バンド → エラー ──
     if (validOctaveCount === 0) {
         statusEl.textContent = '❌ 測定失敗: 有効データが0バンドです';
         statusEl.className = 'status-msg error';
-        document.getElementById('warningReason').textContent =
-            'すべてのバンドでSNR不足のため測定できませんでした。\n' +
-            'スピーカー音量を上げるか、環境ノイズを下げて再測定してください。';
-        warnEl.className = 'warning-box';
-        warnEl.style.display = 'block';
-        startBtn.disabled = false;
-        return;
+        document.getElementById('warningReason').textContent = 'すべてのバンドでSNR不足のため測定できませんでした。スピーカー音量を上げるか、環境ノイズを下げて再測定してください。';
+        warnEl.className = 'warning-box'; warnEl.style.display = 'block';
+        startBtn.disabled = false; return;
     }
 
-    // ── 測定完了: 有効バンドのみmeasurementDataに格納 ──
-    measurementData = octaveResults; // nullを含む6要素配列
+    measurementData = octaveResults;
 
-    // オクターブバンドに対応するメソッドを集約（最低品質メソッドを代表値）
     const METHOD_RANK = { 'T20': 0, 'T30': 1, 'T60': 2 };
-    const octaveDefs2 = MEASUREMENT_CONFIG.octaveBands;
     let lowestMethod = 'T60';
-    for (let i = 0; i < octaveDefs2.length; i++) {
+    for (let i = 0; i < octaveDefs.length; i++) {
         if (octaveResults[i] === null) continue;
-        for (const bi of octaveDefs2[i].indices) {
+        for (const bi of octaveDefs[i].indices) {
             const m = methodResults[bi];
             if (m && METHOD_RANK[m] < METHOD_RANK[lowestMethod]) lowestMethod = m;
         }
     }
     window._measurementMethod = lowestMethod;
 
-    // バッジ即時更新（switchMode()を待たずにresult受信時点で反映）
     const _badge = document.getElementById('methodBadge');
     if (_badge) {
-        const _methodColors = { 'T60': 'var(--success)', 'T30': 'var(--warning)', 'T20': 'var(--caution)' };
+        const mc = { 'T60': 'var(--success)', 'T30': 'var(--warning)', 'T20': 'var(--caution)' };
         _badge.textContent = lowestMethod;
-        _badge.style.background = _methodColors[lowestMethod] || 'var(--warning)';
+        _badge.style.background = mc[lowestMethod] || 'var(--warning)';
     }
 
     saveRoomSizeToBuffer();
     disableRoomSizeInputs();
     measurementActive = true;
 
-    const bandSummary = 'Measured: ' + validOctaveCount + ' / ' + totalOctaveCount + ' bands';
-
-    // ── 警告レベル判定 ──
+    const bandSummary = 'Measured: ' + validOctaveCount + ' / 6 bands';
     if (validOctaveCount >= 5) {
         statusEl.textContent = '✅ 測定完了（' + bandSummary + '）';
         statusEl.className = 'status-msg success';
     } else if (validOctaveCount >= 3) {
         statusEl.textContent = '⚠️ 測定完了（' + bandSummary + '）— 精度注意';
         statusEl.className = 'status-msg warning';
-        const warnText =
-            '欠損バンド: ' + missingBands.join(', ') + '\n' +
-            'SNR不足またはEDC品質不良のため一部バンドが取得できませんでした。\n' +
-            '欠損バンドはN/Aとして表示。外部スピーカーでの再測定を推奨します。';
-        document.getElementById('warningReason').textContent = warnText;
-        warnEl.className = 'warning-box warning-yellow';
-        warnEl.style.display = 'block';
+        document.getElementById('warningReason').textContent = '欠損バンド: ' + missingBands.join(', ') + '\nSNR不足またはEDC品質不良のため一部バンドが取得できませんでした。外部スピーカーでの再測定を推奨します。';
+        warnEl.className = 'warning-box warning-yellow'; warnEl.style.display = 'block';
     } else {
         statusEl.textContent = '🔴 測定完了（' + bandSummary + '）— 精度不足・再測定推奨';
         statusEl.className = 'status-msg error';
-        const warnText =
-            '欠損バンド: ' + missingBands.join(', ') + '\n' +
-            '取得できたバンドが少なく、音響評価の信頼性が低い状態です。\n' +
-            'スピーカー音量を上げるか、外部スピーカー・マイクで再測定してください。';
-        document.getElementById('warningReason').textContent = warnText;
-        warnEl.className = 'warning-box';
-        warnEl.style.display = 'block';
+        document.getElementById('warningReason').textContent = '欠損バンド: ' + missingBands.join(', ') + '\n取得できたバンドが少なく、音響評価の信頼性が低い状態です。スピーカー音量を上げるか、外部スピーカー・マイクで再測定してください。';
+        warnEl.className = 'warning-box'; warnEl.style.display = 'block';
     }
-
     calculate();
 }
 
-
 function handleMeasurementError(message) {
-    const statusEl = document.getElementById('measureStatus');
     document.getElementById('startMeasBtn').disabled = false;
     document.getElementById('measureProgress').style.display = 'none';
     document.getElementById('recordingAlert').classList.remove('active');
+    const statusEl = document.getElementById('measureStatus');
     statusEl.textContent = '❌ ' + message;
     statusEl.className = 'status-msg error';
 }
@@ -1910,865 +1388,381 @@ window.addEventListener('DOMContentLoaded', function() { initWorker(); });
 
 <script>
 // ========================================
-// 測定設定（Rev 18.25 Broadband Sweep仕様）
+// 測定設定（Rev 1.0 / Broadband Sweep仕様）
 // ========================================
 const MEASUREMENT_CONFIG = {
-
-    // サンプルレート要求値（48kHz固定）
-    // AudioContext作成後に実測値と照合し、不一致の場合はエラー
     sampleRate: 48000,
-
-    // 測定バンド: 1/3オクターブ 18バンド（ISO 266:2003準拠）
-    // 3バンドずつグループ化して6オクターブバンドに集約する
-    bands: [
-        100, 125, 160,   // → 125Hz オクターブバンド
-        200, 250, 315,   // → 250Hz
-        400, 500, 630,   // → 500Hz
-        800, 1000, 1250, // → 1kHz
-        1600, 2000, 2500,// → 2kHz
-        3150, 4000, 5000 // → 4kHz
-    ],
-
-    // オクターブバンド集約グループ
-    // indices は上記 bands 配列のインデックスに対応
+    bands: [100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000],
     octaveBands: [
-        { label: '125Hz', indices: [0, 1, 2]   },
-        { label: '250Hz', indices: [3, 4, 5]   },
-        { label: '500Hz', indices: [6, 7, 8]   },
-        { label: '1kHz',  indices: [9, 10, 11] },
-        { label: '2kHz',  indices: [12, 13, 14]},
-        { label: '4kHz',  indices: [15, 16, 17]}
+        { label: '125Hz', indices: [0,1,2]    },
+        { label: '250Hz', indices: [3,4,5]    },
+        { label: '500Hz', indices: [6,7,8]    },
+        { label: '1kHz',  indices: [9,10,11]  },
+        { label: '2kHz',  indices: [12,13,14] },
+        { label: '4kHz',  indices: [15,16,17] }
     ],
-
-    // タイミング設定（1バンドあたり / 単位: 秒）
-    // Bluetooth遅延・相互相関に対応した余裕を持った設定
-    timing: {
-        delay:         1.0,  // Bluetooth安定化待機（0.5→1.0秒）
-        stimulus:      5.0,  // ブロードバンド Log-Sweep 再生（20Hz〜20kHz）
-        recording:     5.0,  // 残響減衰録音（残響時間5秒を確保）
-        totalPerBand:  5.0   // 参照値（単一録音のため実質不使用）
-    },
-
-    // 解析パラメータ
-    analysis: {
-        bpfOrder:  6,     // Butterworth BPF 次数（36dB/oct）
-        bpfMargin: 0.05,  // カットオフを規格より5%内側に設定（隣接帯域漏れ防止）
-        minSnr:    15.0   // 採用最低SNR [dB]。未満はnull（B案: 欠損扱い）
-    },
-
-    // 測定開始アナウンスBeep音
-    beep: {
-        frequency:  1000, // Hz
-        duration:   0.2,  // 秒
-        gain:       0.3,  // 音量
-        waitAfter:  1.0   // Beep後の準備待機（秒）
-    },
-
-    // sweepGain: Sweep信号の出力ゲイン
+    timing: { delay: 1.0, stimulus: 5.0, recording: 5.0, totalPerBand: 5.0 },
+    analysis: { bpfOrder: 6, bpfMargin: 0.05, minSnr: 15.0 },
+    beep: { frequency: 1000, duration: 0.2, gain: 0.3, waitAfter: 1.0 },
     sweepGain: 0.7
 };
 
 let audioContext = null;
-let mediaStream = null;
-let systemLatencyOffset = null;  // レイテンシーキャリブレーション結果（サンプル数）
+let mediaStream  = null;
+let systemLatencyOffset = null;
 
-// ─────────────────────────────────────────────────────
-// ユーティリティ: 指定ミリ秒待機
-// ─────────────────────────────────────────────────────
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
-// ─────────────────────────────────────────────────────
-// 進捗UI更新
-// ─────────────────────────────────────────────────────
-// updateProgress, checkEarlyTermination: ブロードバンド方式移行により廃止 (Rev 18.20)
-
-// ─────────────────────────────────────────────────────
-// キャリブレーション: ノイズフロア測定（2秒無音録音）
-// 録音データをそのままWorkerに送り、Worker側でバンド別解析
-// ─────────────────────────────────────────────────────
 async function measureNoiseFloor(ctx, stream) {
-    const fs = ctx.sampleRate;
-    const duration = 5.0; // 秒（2秒→5秒に延長：突発ノイズを平均化、閾値安定化）
+    const fs = ctx.sampleRate, duration = 5.0;
     const totalSamples = Math.round(duration * fs);
-
-    // ScriptProcessorで録音
-    const bufferSize = 4096;
-    const recorded = new Float32Array(totalSamples);
-    let recordedSamples = 0;
-    let resolveRecording;
+    const bufferSize = 4096, recorded = new Float32Array(totalSamples);
+    let recordedSamples = 0, resolveRecording;
     const recordingDone = new Promise(r => { resolveRecording = r; });
-
     const source = ctx.createMediaStreamSource(stream);
     const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
-
     processor.onaudioprocess = (e) => {
         const input = e.inputBuffer.getChannelData(0);
-        for (let i = 0; i < input.length; i++) {
-            if (recordedSamples < totalSamples) {
-                recorded[recordedSamples++] = input[i];
-            }
-        }
-        if (recordedSamples >= totalSamples) {
-            resolveRecording();
-        }
+        for (let i = 0; i < input.length; i++) { if (recordedSamples < totalSamples) recorded[recordedSamples++] = input[i]; }
+        if (recordedSamples >= totalSamples) resolveRecording();
     };
-
-    // ScriptProcessorの接続（Chrome仕様で必要）
-    // MediaStreamDestinationに接続することで物理出力を回避
-    const dummyDestination = ctx.createMediaStreamDestination();
-    source.connect(processor);
-    processor.connect(dummyDestination);  // 仮想出力のみ
-
+    const dummyDest = ctx.createMediaStreamDestination();
+    source.connect(processor); processor.connect(dummyDest);
     await recordingDone;
-
-    source.disconnect();
-    processor.disconnect();
-
-    // Raw録音データを返す（Workerで帯域別解析）
+    source.disconnect(); processor.disconnect();
     return recorded;
 }
 
-// ─────────────────────────────────────────────────────
-// アナウンスBeep音再生（iOS対応）
-// ─────────────────────────────────────────────────────
 async function playBeep(ctx, speakerId) {
     const cfg = MEASUREMENT_CONFIG.beep;
-    
-    // Beep音生成
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.type = 'sine';
-    osc.frequency.value = cfg.frequency;
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = cfg.frequency;
     gain.gain.setValueAtTime(cfg.gain, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + cfg.duration);
-    
     osc.connect(gain);
-    
     if (isIOS) {
-        // iOS: 直接接続（シンプル・安定）
         gain.connect(ctx.destination);
-        
-        // AudioContext.resume()（iOS必須）
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
-        }
-        
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + cfg.duration);
-        
+        if (ctx.state === 'suspended') await ctx.resume();
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + cfg.duration);
     } else {
-        // PC/Android: MediaStreamDestination経由（スピーカー選択可能）
         const destination = ctx.createMediaStreamDestination();
         gain.connect(destination);
-        
-        // HTMLAudioElementで再生
         const audio = new Audio();
         audio.srcObject = destination.stream;
-        
-        // スピーカー指定
-        if (speakerId && typeof audio.setSinkId === 'function') {
-            try {
-                await audio.setSinkId(speakerId);
-            } catch (err) {
-                console.warn('setSinkId失敗（デフォルトスピーカー使用）:', err.message);
-            }
-        }
-        
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + cfg.duration);
-        
+        if (speakerId && typeof audio.setSinkId === 'function') { try { await audio.setSinkId(speakerId); } catch(e) {} }
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + cfg.duration);
         await audio.play();
     }
-    
-    // Beep再生完了 + 待機時間
     await sleep((cfg.duration + cfg.waitAfter) * 1000);
-    
-    // クリーンアップ
-    osc.disconnect();
-    gain.disconnect();
+    osc.disconnect(); gain.disconnect();
 }
+
 function generateBroadbandSweep(sampleRate, durationSec) {
-    // ISO 3382-2準拠: 20Hz〜20kHzのフルレンジ対数スイープ
-    // 単一スイープで全バンドをカバーし、deconvolutionは1回のみ
-    const fLow  = 20;
-    const fHigh = 20000;
-
-    const guardPre  = Math.round(0.15 * sampleRate);  // 150ms前ガード
-    const guardPost = Math.round(0.10 * sampleRate);  // 100ms後ガード
-
-    const sweepSamples = Math.round(durationSec * sampleRate);
-    const k = Math.log(fHigh / fLow) / durationSec;
-
-    const totalSamples = guardPre + sweepSamples + guardPost;
-    const sweep = new Float32Array(totalSamples);
-
-    for (let i = 0; i < sweepSamples; i++) {
-        const t = i / sampleRate;
-        const phase = 2 * Math.PI * fLow * (Math.exp(k * t) - 1) / k;
-        sweep[guardPre + i] = Math.sin(phase) * MEASUREMENT_CONFIG.sweepGain;
+    const fLow=20, fHigh=20000;
+    const guardPre=Math.round(0.15*sampleRate), guardPost=Math.round(0.10*sampleRate);
+    const sweepSamples=Math.round(durationSec*sampleRate);
+    const k=Math.log(fHigh/fLow)/durationSec;
+    const totalSamples=guardPre+sweepSamples+guardPost;
+    const sweep=new Float32Array(totalSamples);
+    for (let i=0;i<sweepSamples;i++) {
+        const t=i/sampleRate, phase=2*Math.PI*fLow*(Math.exp(k*t)-1)/k;
+        sweep[guardPre+i]=Math.sin(phase)*MEASUREMENT_CONFIG.sweepGain;
     }
-
-    // Tukey窓フェード（50ms）
-    const fadeSamples = Math.round(0.05 * sampleRate);
-    for (let i = 0; i < fadeSamples; i++) {
-        const progress = i / fadeSamples;
-        sweep[guardPre + i] *= 0.5 * (1 - Math.cos(Math.PI * progress));
-        sweep[guardPre + sweepSamples - fadeSamples + i] *= 0.5 * (1 + Math.cos(Math.PI * progress));
+    const fadeSamples=Math.round(0.05*sampleRate);
+    for (let i=0;i<fadeSamples;i++) {
+        const p=i/fadeSamples;
+        sweep[guardPre+i]*=0.5*(1-Math.cos(Math.PI*p));
+        sweep[guardPre+sweepSamples-fadeSamples+i]*=0.5*(1+Math.cos(Math.PI*p));
     }
-
-    return { sweep, fLow, fHigh, durationSec: durationSec };
+    return { sweep, fLow, fHigh, durationSec };
 }
 
-// ─────────────────────────────────────────────────────
-// レイテンシーキャリブレーション
-// システム固有の遅延（再生→録音）を測定
-// ─────────────────────────────────────────────────────
-
-// チャープ信号生成（キャリブレーション用）
 function generateCalibrationChirp(sampleRate) {
-    const duration = 0.1;  // 100ms
-    const f1 = 500;        // 開始周波数
-    const f2 = 2000;       // 終了周波数
-    const samples = Math.floor(duration * sampleRate);
-    const chirp = new Float32Array(samples);
-    
-    for (let i = 0; i < samples; i++) {
-        const t = i / sampleRate;
-        const phase = 2 * Math.PI * (f1 * t + (f2 - f1) * t * t / (2 * duration));
-        chirp[i] = Math.sin(phase);
+    const duration=0.1, f1=500, f2=2000;
+    const samples=Math.floor(duration*sampleRate);
+    const chirp=new Float32Array(samples);
+    for (let i=0;i<samples;i++) {
+        const t=i/sampleRate, phase=2*Math.PI*(f1*t+(f2-f1)*t*t/(2*duration));
+        chirp[i]=Math.sin(phase);
     }
-    
-    // ハニング窓でフェード
-    for (let i = 0; i < samples; i++) {
-        const window = 0.5 * (1 - Math.cos(2 * Math.PI * i / samples));
-        chirp[i] *= window;
-    }
-    
+    for (let i=0;i<samples;i++) { const w=0.5*(1-Math.cos(2*Math.PI*i/samples)); chirp[i]*=w; }
     return chirp;
 }
 
-// チャープ信号の位置を検出（相互相関）
 function findChirpOffset(recorded, chirp, sampleRate) {
-    // 検索範囲: 最初の2秒間
-    const searchSamples = Math.min(
-        Math.floor(2.0 * sampleRate),
-        recorded.length - chirp.length
-    );
-    
-    if (searchSamples <= 0) {
-        console.warn('⚠️ レイテンシー検出失敗: 録音が短すぎる');
-        return Math.floor(0.5 * sampleRate);
+    const searchSamples=Math.min(Math.floor(2.0*sampleRate), recorded.length-chirp.length);
+    if (searchSamples<=0) return Math.floor(0.5*sampleRate);
+    let maxCorr=-Infinity, bestOffset=0;
+    for (let offset=0;offset<searchSamples;offset+=100) {
+        let corr=0;
+        for (let i=0;i<chirp.length;i++) corr+=recorded[offset+i]*chirp[i];
+        if(corr>maxCorr){maxCorr=corr;bestOffset=offset;}
     }
-    
-    let maxCorr = -Infinity;
-    let bestOffset = 0;
-    
-    // 粗いスキャン（100サンプル刻み）
-    for (let offset = 0; offset < searchSamples; offset += 100) {
-        let corr = 0;
-        for (let i = 0; i < chirp.length; i++) {
-            corr += recorded[offset + i] * chirp[i];
-        }
-        if (corr > maxCorr) {
-            maxCorr = corr;
-            bestOffset = offset;
-        }
+    const fineStart=Math.max(0,bestOffset-100), fineEnd=Math.min(searchSamples,bestOffset+100);
+    maxCorr=-Infinity;
+    for (let offset=fineStart;offset<fineEnd;offset++) {
+        let corr=0;
+        for (let i=0;i<chirp.length;i++) corr+=recorded[offset+i]*chirp[i];
+        if(corr>maxCorr){maxCorr=corr;bestOffset=offset;}
     }
-    
-    // 細かい調整（±100サンプル範囲で1サンプル刻み）
-    const fineStart = Math.max(0, bestOffset - 100);
-    const fineEnd = Math.min(searchSamples, bestOffset + 100);
-    maxCorr = -Infinity;
-    
-    for (let offset = fineStart; offset < fineEnd; offset++) {
-        let corr = 0;
-        for (let i = 0; i < chirp.length; i++) {
-            corr += recorded[offset + i] * chirp[i];
-        }
-        if (corr > maxCorr) {
-            maxCorr = corr;
-            bestOffset = offset;
-        }
-    }
-    
-    // 信頼度計算
-    let recEnergy = 0;
-    let chirpEnergy = 0;
-    for (let i = 0; i < chirp.length; i++) {
-        recEnergy += recorded[bestOffset + i] * recorded[bestOffset + i];
-        chirpEnergy += chirp[i] * chirp[i];
-    }
-    
-    const normalizedCorr = maxCorr / (Math.sqrt(recEnergy * chirpEnergy) + 1e-10);
-    
-    console.log('チャープ検出: offset=' + bestOffset + ' (' + (bestOffset/sampleRate).toFixed(3) + 's), 信頼度=' + normalizedCorr.toFixed(3));
-    
-    if (normalizedCorr < 0.5) {
-        console.warn('⚠️ レイテンシー検出の信頼度が低い（' + normalizedCorr.toFixed(3) + ' < 0.5）');
-    }
-    
     return bestOffset;
 }
 
-// レイテンシーキャリブレーション実行
 async function calibrateLatency(audioContext, mediaStream, speakerId) {
-    const fs = audioContext.sampleRate;
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    
-    console.log('=== レイテンシーキャリブレーション開始 ===');
-    
-    // 1. テストチャープ生成
-    const chirp = generateCalibrationChirp(fs);
-    console.log('  チャープ生成: ' + chirp.length + 'サンプル (' + (chirp.length/fs*1000).toFixed(0) + 'ms)');
-    
-    // 2. 録音時間設定（前バッファ0.5秒 + チャープ0.1秒 + 検索余裕2秒）
-    const recordingDuration = 2.6;
-    const totalSamples = Math.round(recordingDuration * fs);
-    
-    // 3. ScriptProcessorで録音準備
-    const bufferSize = 4096;
-    const recorded = new Float32Array(totalSamples);
-    let recordedSamples = 0;
-    let resolveRecording;
-    const recordingDone = new Promise(r => { resolveRecording = r; });
-    
-    const source = audioContext.createMediaStreamSource(mediaStream);
-    const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-    
-    processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        for (let i = 0; i < input.length; i++) {
-            if (recordedSamples < totalSamples) {
-                recorded[recordedSamples++] = input[i];
-            }
-        }
-        if (recordedSamples >= totalSamples) {
-            resolveRecording();
-        }
+    const fs=audioContext.sampleRate;
+    const chirp=generateCalibrationChirp(fs);
+    const recordingDuration=2.6, totalSamples=Math.round(recordingDuration*fs);
+    const bufferSize=4096, recorded=new Float32Array(totalSamples);
+    let recordedSamples=0, resolveRecording;
+    const recordingDone=new Promise(r=>{resolveRecording=r;});
+    const source=audioContext.createMediaStreamSource(mediaStream);
+    const processor=audioContext.createScriptProcessor(bufferSize,1,1);
+    processor.onaudioprocess=(e)=>{
+        const input=e.inputBuffer.getChannelData(0);
+        for(let i=0;i<input.length;i++){if(recordedSamples<totalSamples)recorded[recordedSamples++]=input[i];}
+        if(recordedSamples>=totalSamples)resolveRecording();
     };
-    
-    const dummyDestination = audioContext.createMediaStreamDestination();
-    source.connect(processor);
-    processor.connect(dummyDestination);
-    
-    console.log('  録音準備完了、200ms待機...');
-    
-    // 4. 録音バッファ安定待機
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    console.log('  チャープ再生開始');
-    
-    // 5. チャープ再生
-    const chirpBuffer = audioContext.createBuffer(1, chirp.length, fs);
-    chirpBuffer.copyToChannel(chirp, 0);
-    const chirpSource = audioContext.createBufferSource();
-    chirpSource.buffer = chirpBuffer;
-    
+    const dummyDest=audioContext.createMediaStreamDestination();
+    source.connect(processor); processor.connect(dummyDest);
+    await new Promise(resolve=>setTimeout(resolve,200));
+    const chirpBuffer=audioContext.createBuffer(1,chirp.length,fs);
+    chirpBuffer.copyToChannel(chirp,0);
+    const chirpSource=audioContext.createBufferSource();
+    chirpSource.buffer=chirpBuffer;
     if (isIOS) {
         chirpSource.connect(audioContext.destination);
         chirpSource.start(audioContext.currentTime);
     } else {
-        const destination = audioContext.createMediaStreamDestination();
-        chirpSource.connect(destination);
-        
-        const audio = new Audio();
-        audio.srcObject = destination.stream;
-        
-        if (speakerId && typeof audio.setSinkId === 'function') {
-            try {
-                await audio.setSinkId(speakerId);
-            } catch (err) {
-                console.warn('Calibration: setSinkId失敗:', err.message);
-            }
-        }
-        
-        await audio.play();
-        chirpSource.start(audioContext.currentTime);
+        const dest=audioContext.createMediaStreamDestination();
+        chirpSource.connect(dest);
+        const audio=new Audio(); audio.srcObject=dest.stream;
+        if(speakerId&&typeof audio.setSinkId==='function'){try{await audio.setSinkId(speakerId);}catch(e){}}
+        await audio.play(); chirpSource.start(audioContext.currentTime);
     }
-    
-    // 6. 録音完了まで待機
     await recordingDone;
-    
-    // 7. クリーンアップ
-    source.disconnect();
-    processor.disconnect();
-    
-    console.log('=== レイテンシー録音完了: ' + recordedSamples + 'サンプル ===');
-    
-    // 8. 相互相関でオフセット検出
-    const latencyOffset = findChirpOffset(recorded, chirp, fs);
-    
-    console.log('=== レイテンシー検出完了: ' + latencyOffset + 'サンプル (' + (latencyOffset/fs).toFixed(3) + '秒) ===');
-    
-    return latencyOffset;
+    source.disconnect(); processor.disconnect();
+    return findChirpOffset(recorded,chirp,fs);
 }
 
-// ─────────────────────────────────────────────────────
-// 1バンド再生・録音
-// Sweep再生と同時に録音開始、recording秒後に停止
-// ─────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────
-// 1バンド再生・録音（MediaStreamDestination方式・Bluetooth対応）
-// Sweep再生と同時に録音開始、recording秒後に停止
-// 前後に余裕を持たせ、相互相関で正確な位置を検出
-// ─────────────────────────────────────────────────────
 async function playAndRecord(ctx, stream, sweepData, centerHz, speakerId) {
-    const cfg = MEASUREMENT_CONFIG.timing;
-    const fs  = ctx.sampleRate;
-    
-    // 録音バッファ: 前後に余裕（Bluetooth遅延・ジッター対応）
-    // 前バッファ0.5秒 + stimulus + recording + 後バッファ0.5秒
-    const preBuffer  = Math.round(0.5 * fs);
-    const postBuffer = Math.round(0.5 * fs);
-    const sweepSamples = sweepData.sweep.length;
-    const recordingSamples = Math.round(cfg.recording * fs);
-    const totalSamples = preBuffer + sweepSamples + recordingSamples + postBuffer;
-
-    // ScriptProcessorで録音
-    const bufferSize = 4096;
-    const recorded = new Float32Array(totalSamples);
-    let recordedSamples = 0;
-    let resolveRecording;
-    const recordingDone = new Promise(r => { resolveRecording = r; });
-
-    const source = ctx.createMediaStreamSource(stream);
-    const processor = ctx.createScriptProcessor(bufferSize, 1, 1);
-
-    processor.onaudioprocess = (e) => {
-        const input = e.inputBuffer.getChannelData(0);
-        for (let i = 0; i < input.length; i++) {
-            if (recordedSamples < totalSamples) {
-                recorded[recordedSamples++] = input[i];
-            }
-        }
-        if (recordedSamples >= totalSamples) {
-            resolveRecording();
-        }
+    const cfg=MEASUREMENT_CONFIG.timing, fs=ctx.sampleRate;
+    const preBuffer=Math.round(0.5*fs), postBuffer=Math.round(0.5*fs);
+    const sweepSamples=sweepData.sweep.length, recordingSamples=Math.round(cfg.recording*fs);
+    const totalSamples=preBuffer+sweepSamples+recordingSamples+postBuffer;
+    const bufferSize=4096, recorded=new Float32Array(totalSamples);
+    let recordedSamples=0, resolveRecording;
+    const recordingDone=new Promise(r=>{resolveRecording=r;});
+    const source=ctx.createMediaStreamSource(stream);
+    const processor=ctx.createScriptProcessor(bufferSize,1,1);
+    processor.onaudioprocess=(e)=>{
+        const input=e.inputBuffer.getChannelData(0);
+        for(let i=0;i<input.length;i++){if(recordedSamples<totalSamples)recorded[recordedSamples++]=input[i];}
+        if(recordedSamples>=totalSamples)resolveRecording();
     };
-
-    // ScriptProcessorの接続（Chrome仕様で必要）
-    // MediaStreamDestinationに接続することで物理出力を回避
-    const dummyDestination = ctx.createMediaStreamDestination();
-    source.connect(processor);
-    processor.connect(dummyDestination);  // 仮想出力のみ
-
-    // ⭐ 録音バッファが安定するまで待機（200ms）
-    // OSの録音立ち上がり遅延対策：macOS/iOS 100-200ms, Windows 50-150ms, Android 100-300ms
-    // この待機により、Sweepの最初から確実に録音され、相互相関の成功率が劇的に向上
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // Sweep信号を準備
-    const sweepBuffer = ctx.createBuffer(1, sweepData.sweep.length, fs);
-    sweepBuffer.copyToChannel(sweepData.sweep, 0);
-    const sweepSource = ctx.createBufferSource();
-    sweepSource.buffer = sweepBuffer;
-
-    // audio変数を関数スコープで宣言（iOS/非iOS両方で使えるように）
-    let audio = null;
-
+    const dummyDest=ctx.createMediaStreamDestination();
+    source.connect(processor); processor.connect(dummyDest);
+    await new Promise(resolve=>setTimeout(resolve,200));
+    const sweepBuffer=ctx.createBuffer(1,sweepData.sweep.length,fs);
+    sweepBuffer.copyToChannel(sweepData.sweep,0);
+    const sweepSource=ctx.createBufferSource();
+    sweepSource.buffer=sweepBuffer;
+    let audio=null;
     if (isIOS) {
-        // iOS専用パス：MediaStreamDestination回避（ぶつ切れ対策）
-        // スピーカー選択は諦めるが、音は安定
         sweepSource.connect(ctx.destination);
-        
-        // AudioContext.resume()（iOS必須）
-        if (ctx.state === 'suspended') {
-            await ctx.resume();
-        }
-        
+        if(ctx.state==='suspended') await ctx.resume();
         sweepSource.start(ctx.currentTime);
-        
     } else {
-        // PC/Android：MediaStreamDestination経由（スピーカー選択可能）
-        const destination = ctx.createMediaStreamDestination();
-        sweepSource.connect(destination);
-
-        // HTMLAudioElementで再生（スピーカー指定）
-        audio = new Audio();
-        audio.srcObject = destination.stream;
-        
-        if (speakerId && typeof audio.setSinkId === 'function') {
-            try {
-                await audio.setSinkId(speakerId);
-            } catch (err) {
-                console.warn(`${centerHz}Hz: setSinkId失敗（デフォルトスピーカー使用）:`, err.message);
-            }
-        }
-
-        // HTMLAudioElementの再生を先に開始
+        const dest=ctx.createMediaStreamDestination();
+        sweepSource.connect(dest);
+        audio=new Audio(); audio.srcObject=dest.stream;
+        if(speakerId&&typeof audio.setSinkId==='function'){try{await audio.setSinkId(speakerId);}catch(e){}}
         await audio.play();
-        
-        // 再生が確実に始まるまで待機（100ms）
-        // これによりAudioContextとHTMLAudioElementのタイミングがズレない
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // BufferSourceを開始
+        await new Promise(resolve=>setTimeout(resolve,100));
         sweepSource.start(ctx.currentTime);
     }
-
-    // 録音完了まで待機
     await recordingDone;
-
-    // クリーンアップ
-    source.disconnect();
-    processor.disconnect();
-    // sweepSource.stop()は不要（BufferSourceは自動停止、明示的stop()はポップノイズの原因）
-    
-    if (audio) {
-        audio.pause();
-        audio.srcObject = null;
-    }
-
+    source.disconnect(); processor.disconnect();
+    if(audio){audio.pause();audio.srcObject=null;}
     return recorded;
 }
 
-// ─────────────────────────────────────────────────────
-// オクターブバンド完了時の早期打ち切り判定
-// 確定式: validOctaves + remainingOctaves < 4 → 停止
-// ─────────────────────────────────────────────────────
-// checkEarlyTermination: ブロードバンド方式移行により廃止 (Rev 18.20)
-
-// ─────────────────────────────────────────────────────
-// メイン測定シーケンス
-// ─────────────────────────────────────────────────────
 async function runMeasurementSequence() {
     const statusEl  = document.getElementById('measureStatus');
     const startBtn  = document.getElementById('startMeasBtn');
     const progressEl = document.getElementById('measureProgress');
+    startBtn.disabled=true;
+    document.getElementById('remeasureWarning').style.display='none';
 
-    startBtn.disabled = true;
-    document.getElementById('remeasureWarning').style.display = 'none';
+    const snrProfile   = SNR_PROFILES[currentSNRProfile];
+    const initTimeSec  = 20;
+    progressEl.style.display='block';
+    document.getElementById('progressBar').style.width='0%';
+    document.getElementById('progressCount').textContent='準備中...';
+    document.getElementById('progressTime').textContent='残り約 '+initTimeSec+' 秒';
+    document.getElementById('progressLabel').textContent='キャリブレーション中...';
 
-    // プロファイル取得（ループ全体で使用）
-    const snrProfile    = SNR_PROFILES[currentSNRProfile];
-    const totalBands    = snrProfile.totalBands;
-    const initTimeSec   = 20; // sweep(5s) + recording(5s) + analysis(~3s) + overhead
-
-    // 進捗バー初期化
-    progressEl.style.display = 'block';
-    document.getElementById('progressBar').style.width = '0%';
-    document.getElementById('progressCount').textContent = '準備中...';
-    document.getElementById('progressTime').textContent = '残り約 ' + initTimeSec + ' 秒';
-    document.getElementById('progressLabel').textContent = 'キャリブレーション中...';
-
-    // ── ステージ0: AudioContext 作成・サンプルレート確認 ──
     try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({
-            sampleRate: MEASUREMENT_CONFIG.sampleRate
-        });
-
-        const actualFs = audioContext.sampleRate;
-        if (actualFs !== MEASUREMENT_CONFIG.sampleRate) {
-            throw new Error(
-                `このデバイスは48kHzサンプルレートに対応していません。\n` +
-                `（検出値: ${actualFs}Hz）\n` +
-                `スピーカー/マイクの設定を確認するか、別のデバイスで測定してください。`
-            );
-        }
-    } catch (err) {
-        statusEl.textContent = '❌ ' + err.message;
-        statusEl.className = 'status-msg error';
-        startBtn.disabled = false;
-        progressEl.style.display = 'none';
-        return;
+        audioContext=new (window.AudioContext||window.webkitAudioContext)({sampleRate:MEASUREMENT_CONFIG.sampleRate});
+        const actualFs=audioContext.sampleRate;
+        if(actualFs!==MEASUREMENT_CONFIG.sampleRate) throw new Error(`このデバイスは48kHzサンプルレートに対応していません。（検出値: ${actualFs}Hz）`);
+    } catch(err) {
+        statusEl.textContent='❌ '+err.message; statusEl.className='status-msg error';
+        startBtn.disabled=false; progressEl.style.display='none'; return;
     }
 
-    // ── WorkerへINIT送信（sampleRate・config一括通知 + SNR閾値） ──
-    const configWithSNR = {
-        ...MEASUREMENT_CONFIG,
-        analysis: {
-            ...MEASUREMENT_CONFIG.analysis,
-            minSnr: snrProfile.threshold
-        }
-    };
-    
-    measurementWorker.postMessage({
-        type:       'INIT',
-        sampleRate: audioContext.sampleRate,
-        config:     configWithSNR
-    });
+    const configWithSNR={...MEASUREMENT_CONFIG,analysis:{...MEASUREMENT_CONFIG.analysis,minSnr:snrProfile.threshold}};
+    measurementWorker.postMessage({type:'INIT',sampleRate:audioContext.sampleRate,config:configWithSNR});
 
-    // AudioContext.resume()（ブラウザのAutoplay Policyに対応）
-    if (audioContext.state === 'suspended') {
-        try {
-            await audioContext.resume();
-            console.info('AudioContext resumed');
-        } catch (err) {
-            console.warn('AudioContext.resume()失敗:', err.message);
-        }
-    }
+    if(audioContext.state==='suspended'){try{await audioContext.resume();}catch(e){}}
 
-    // ── ステージ0: マイクストリーム取得 ──
     try {
-        const micId = document.getElementById('micSelect').value;
-        const constraints = {
-            audio: {
-                deviceId: micId ? { exact: micId } : undefined,
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-                sampleRate: MEASUREMENT_CONFIG.sampleRate
-            }
-        };
-        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-    } catch (err) {
-        statusEl.textContent = '❌ マイクの取得に失敗しました: ' + err.message;
-        statusEl.className = 'status-msg error';
-        startBtn.disabled = false;
-        progressEl.style.display = 'none';
-        return;
+        const micId=document.getElementById('micSelect').value;
+        mediaStream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:micId?{exact:micId}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false,sampleRate:MEASUREMENT_CONFIG.sampleRate}});
+    } catch(err) {
+        statusEl.textContent='❌ マイクの取得に失敗しました: '+err.message; statusEl.className='status-msg error';
+        startBtn.disabled=false; progressEl.style.display='none'; return;
     }
 
-    // ── ステージ1: アナウンスBeep + 測定開始通知 ──
-    // スピーカーデバイスIDを取得
-    const speakerId = document.getElementById('spkSelect').value;
-    
-    statusEl.textContent = `🔔 測定を開始します。静かにしてください（約${initTimeSec}秒）`;
-    statusEl.className = 'status-msg calibrating';
+    const speakerId=document.getElementById('spkSelect').value;
+    statusEl.textContent=`🔔 測定を開始します。静かにしてください（約${initTimeSec}秒）`;
+    statusEl.className='status-msg calibrating';
     document.getElementById('recordingAlert').classList.add('active');
+    try { await playBeep(audioContext,speakerId); } catch(e) {}
 
+    statusEl.textContent='🔍 システム遅延を測定中...（約3秒）';
+    statusEl.className='status-msg calibrating';
+    document.getElementById('progressLabel').textContent='システム遅延測定中...';
     try {
-        await playBeep(audioContext, speakerId);
-        console.info('✅ Beep音再生完了');
-    } catch (err) {
-        // Beep失敗は非致命的 → 続行
-        console.warn('Beep再生失敗（続行）:', err.message);
+        systemLatencyOffset=await calibrateLatency(audioContext,mediaStream,speakerId);
+        const latencyMs=(systemLatencyOffset/audioContext.sampleRate*1000).toFixed(0);
+        statusEl.textContent='✅ システム遅延: '+latencyMs+'ms';
+        statusEl.className='status-msg success';
+        await sleep(1000);
+    } catch(e) {
+        systemLatencyOffset=Math.floor(0.5*audioContext.sampleRate);
     }
 
-    // ── ステージ1.3: レイテンシーキャリブレーション ──
-    statusEl.textContent = '🔍 システム遅延を測定中...（約3秒）';
-    statusEl.className = 'status-msg calibrating';
-    document.getElementById('progressLabel').textContent = 'システム遅延測定中...';
-    
+    statusEl.textContent='📊 環境ノイズを測定中...（5秒）';
+    statusEl.className='status-msg calibrating';
+    document.getElementById('progressLabel').textContent='環境ノイズ測定中...';
     try {
-        systemLatencyOffset = await calibrateLatency(audioContext, mediaStream, speakerId);
-        
-        const latencyMs = (systemLatencyOffset / audioContext.sampleRate * 1000).toFixed(0);
-        console.info('✅ システム遅延検出: ' + systemLatencyOffset + 'サンプル (' + latencyMs + 'ms)');
-        
-        statusEl.textContent = '✅ システム遅延: ' + latencyMs + 'ms';
-        statusEl.className = 'status-msg success';
-        await sleep(1000); // 1秒間表示
-        
-    } catch (err) {
-        console.warn('⚠️ レイテンシー測定失敗、デフォルト値を使用:', err.message);
-        systemLatencyOffset = Math.floor(0.5 * audioContext.sampleRate);
-    }
+        const noiseRecording=await measureNoiseFloor(audioContext,mediaStream);
+        measurementWorker.postMessage({type:'CALIBRATION',noiseRecording:noiseRecording.buffer},[noiseRecording.buffer]);
+    } catch(e) {}
 
-    // ── ステージ1.5: キャリブレーション（ノイズフロア測定） ──
-    statusEl.textContent = '📊 環境ノイズを測定中...（5秒）';
-    statusEl.className = 'status-msg calibrating';
-    document.getElementById('progressLabel').textContent = '環境ノイズ測定中...';
-    
-    let noiseRecording;
-    try {
-        noiseRecording = await measureNoiseFloor(audioContext, mediaStream);
-        
-        // Worker側でバンド別解析を実行（非同期・ブロックしない）
-        measurementWorker.postMessage({
-            type: 'CALIBRATION',
-            noiseRecording: noiseRecording.buffer
-        }, [noiseRecording.buffer]); // Transferable
-        
-        console.info('✅ ノイズフロア録音完了 → Workerで解析中');
-    } catch (err) {
-        console.warn('⚠️ ノイズフロア測定失敗:', err.message);
-    }
-    
-    console.info('キャリブレーション完了、18バンド測定に進みます');
+    measurementWorker.postMessage({type:'SET_LATENCY',latencyOffset:systemLatencyOffset});
 
-    // ── レイテンシーオフセットをWorkerに送信 ──
-    measurementWorker.postMessage({
-        type: 'SET_LATENCY',
-        latencyOffset: systemLatencyOffset
-    });
-    console.info('  レイテンシーオフセット送信: ' + systemLatencyOffset + 'サンプル');
+    statusEl.textContent='🔊 スイープ再生・録音中...（約12秒）';
+    statusEl.className='status-msg analyzing';
+    document.getElementById('progressLabel').textContent='スイープ再生中...';
+    await sleep(MEASUREMENT_CONFIG.timing.delay*1000);
 
-    // ── ステージ2: ブロードバンド単一スイープ測定 ──
-    // ISO 3382-2準拠: 1回録音 → 1回deconvolution → Worker内で18バンド処理
-    console.info('=== ブロードバンドスイープ測定開始 ===');
+    const sweepResult=generateBroadbandSweep(audioContext.sampleRate,MEASUREMENT_CONFIG.timing.stimulus);
+    const {sweep:sweepSignal,fLow:sweepFLow,fHigh:sweepFHigh,durationSec:sweepDuration}=sweepResult;
+    const sweepDataObj={sweep:sweepSignal};
 
-    statusEl.textContent = '🔊 スイープ再生・録音中...（約12秒）';
-    statusEl.className = 'status-msg analyzing';
-    document.getElementById('progressLabel').textContent = 'スイープ再生中...';
+    const recordingTotalMs=(MEASUREMENT_CONFIG.timing.stimulus+MEASUREMENT_CONFIG.timing.recording+1.5)*1000;
+    const recStart=Date.now();
+    document.getElementById('progressBar').style.width='0%';
+    document.getElementById('progressCount').textContent='録音中...';
+    document.getElementById('progressLabel').textContent='🔊 スイープ再生・残響録音中';
 
-    // Bluetooth/デバイス安定化待機
-    await sleep(MEASUREMENT_CONFIG.timing.delay * 1000);
-
-    // ブロードバンドスイープ生成（20Hz〜20kHz、5秒）
-    const sweepResult = generateBroadbandSweep(
-        audioContext.sampleRate,
-        MEASUREMENT_CONFIG.timing.stimulus
-    );
-    const { sweep: sweepSignal, fLow: sweepFLow, fHigh: sweepFHigh, durationSec: sweepDuration } = sweepResult;
-    console.info('Sweep生成完了: ' + sweepFLow + 'Hz-' + sweepFHigh + 'Hz, ' + sweepSignal.length + 'サンプル');
-
-    // 単一録音（スイープ＋残響尾5秒）
-    const sweepDataObj = { sweep: sweepSignal };
-
-    // フェーズ1: 録音中の時間ベース進捗（0→50%）
-    const recordingTotalMs = (MEASUREMENT_CONFIG.timing.stimulus + MEASUREMENT_CONFIG.timing.recording + 1.5) * 1000;
-    const recStart = Date.now();
-    document.getElementById('progressBar').style.width = '0%';
-    document.getElementById('progressCount').textContent = '録音中...';
-    document.getElementById('progressLabel').textContent = '🔊 スイープ再生・残響録音中';
-
-    const recProgressTimer = setInterval(() => {
-        const elapsed = Date.now() - recStart;
-        const pct = Math.min(Math.round(elapsed / recordingTotalMs * 50), 49);
-        const remaining = Math.max(0, Math.ceil((recordingTotalMs - elapsed) / 1000));
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressTime').textContent = '残り約 ' + remaining + ' 秒';
-    }, 300);
+    const recProgressTimer=setInterval(()=>{
+        const elapsed=Date.now()-recStart;
+        const pct=Math.min(Math.round(elapsed/recordingTotalMs*50),49);
+        const remaining=Math.max(0,Math.ceil((recordingTotalMs-elapsed)/1000));
+        document.getElementById('progressBar').style.width=pct+'%';
+        document.getElementById('progressTime').textContent='残り約 '+remaining+' 秒';
+    },300);
 
     let recorded;
     try {
-        recorded = await playAndRecord(
-            audioContext, mediaStream, sweepDataObj, 0, speakerId
-        );
-    } catch (err) {
+        recorded=await playAndRecord(audioContext,mediaStream,sweepDataObj,0,speakerId);
+    } catch(err) {
         clearInterval(recProgressTimer);
-        statusEl.textContent = '❌ 録音失敗: ' + err.message;
-        statusEl.className = 'status-msg error';
-        startBtn.disabled = false;
-        progressEl.style.display = 'none';
-        return;
+        statusEl.textContent='❌ 録音失敗: '+err.message; statusEl.className='status-msg error';
+        startBtn.disabled=false; progressEl.style.display='none'; return;
     }
     clearInterval(recProgressTimer);
-    document.getElementById('progressBar').style.width = '50%';
-    document.getElementById('progressCount').textContent = '録音完了';
-    console.info('録音完了: ' + recorded.length + 'サンプル (' + (recorded.length/audioContext.sampleRate).toFixed(1) + 's)');
+    document.getElementById('progressBar').style.width='50%';
+    document.getElementById('progressCount').textContent='録音完了';
 
-    statusEl.textContent = '🔄 Farina法デコンボリューション・解析中...';
-    statusEl.className = 'status-msg analyzing';
+    statusEl.textContent='🔄 Farina法デコンボリューション・解析中...';
+    statusEl.className='status-msg analyzing';
 
-    // Worker に全バンド解析を依頼（bandProgress で進捗受信）
-    const analysisResult = await new Promise((resolve) => {
-        let completedCount = 0;
-        const bands = MEASUREMENT_CONFIG.bands;
-
-        measurementWorker.onmessage = (e) => {
-            if (e.data.type === 'debug') {
-                console.log('[Worker] ' + e.data.message);
-                console.info('[Worker-INFO] ' + e.data.message);
-                return;
-            }
-            if (e.data.type === 'bandProgress') {
+    const analysisResult=await new Promise((resolve)=>{
+        let completedCount=0;
+        measurementWorker.onmessage=(e)=>{
+            if(e.data.type==='debug'){console.log('[Worker] '+e.data.message);return;}
+            if(e.data.type==='bandProgress'){
                 completedCount++;
-                const { band, index, total } = e.data;
-                // フェーズ2: 解析進捗（50%→100%）
-                const analysisPct = Math.round((completedCount / total) * 50);
-                document.getElementById('progressBar').style.width = (50 + analysisPct) + '%';
-                document.getElementById('progressCount').textContent = '解析: ' + completedCount + ' / ' + total + ' バンド';
-                document.getElementById('progressTime').textContent = '';
-                document.getElementById('progressLabel').textContent = '🔄 ' + band + 'Hz 解析中...';
-                statusEl.textContent = '🔄 Farina法解析中... ' + band + 'Hz [' + completedCount + '/' + total + ']';
+                const {band,index,total}=e.data;
+                const analysisPct=Math.round((completedCount/total)*50);
+                document.getElementById('progressBar').style.width=(50+analysisPct)+'%';
+                document.getElementById('progressCount').textContent='解析: '+completedCount+' / '+total+' バンド';
+                document.getElementById('progressTime').textContent='';
+                document.getElementById('progressLabel').textContent='🔄 '+band+'Hz 解析中...';
+                statusEl.textContent='🔄 Farina法解析中... '+band+'Hz ['+completedCount+'/'+total+']';
                 return;
             }
-            if (e.data.type === 'result') {
-                console.info('Worker全バンド解析完了');
-                resolve(e.data);
-            }
-            if (e.data.type === 'error') {
-                console.error('Worker解析エラー:', e.data.message);
-                resolve({ type: 'error', thirdResults: new Array(18).fill(null) });
-            }
+            if(e.data.type==='result') resolve(e.data);
+            if(e.data.type==='error') resolve({type:'error',thirdResults:new Array(18).fill(null)});
         };
-
-        measurementWorker.postMessage({
-            type:        'ANALYZE_ALL',
-            recorded:    recorded.buffer,
-            sweep:       sweepSignal.buffer,
-            fLow:        sweepFLow,
-            fHigh:       sweepFHigh,
-            durationSec: sweepDuration
-        }, [recorded.buffer, sweepSignal.buffer]);
-
-        console.info('ANALYZE_ALL 送信完了、解析待機中...');
+        measurementWorker.postMessage({type:'ANALYZE_ALL',recorded:recorded.buffer,sweep:sweepSignal.buffer,fLow:sweepFLow,fHigh:sweepFHigh,durationSec:sweepDuration},[recorded.buffer,sweepSignal.buffer]);
     });
 
-    const thirdResults = analysisResult.thirdResults;
-
-    // ── 録音停止・クリーンアップ ──
     document.getElementById('recordingAlert').classList.remove('active');
-    if (mediaStream) {
-        mediaStream.getTracks().forEach(t => t.stop());
-        mediaStream = null;
-    }
-    if (audioContext) {
-        try { await audioContext.close(); } catch(e) {}
-        audioContext = null;
-    }
+    if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}
+    if(audioContext){try{await audioContext.close();}catch(e){}audioContext=null;}
 
-    // ── ステージ3: 全バンド完了 → handleMeasurementResult へ ──
-    handleMeasurementResult({ type: 'result', thirdResults });
+    handleMeasurementResult({type:'result',thirdResults:analysisResult.thirdResults});
 }
 </script>
 
 <script>
 // ========================================
-// Google Form 送信・グラフ描画（既存のまま）
+// Google Form 送信・グラフ描画
 // ========================================
 function sendToGoogleForm() {
     const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSedr8Z99dcRJuV3qYRmYddUUzYGrnvrz2aU3zbFvrwVpbTreQ/viewform";
     const appSelect = document.getElementById('appTarget');
     const app = appSelect.options[appSelect.selectedIndex].text;
-    const w = document.getElementById('w').value;
-    const d = document.getElementById('d').value;
-    const h = document.getElementById('h').value;
-    const size = `${w}m × ${d}m × ${h}m`;
-    const wallSelect = document.getElementById('baseWall');
-    const ceilingSelect = document.getElementById('baseCeiling');
-    const floorSelect = document.getElementById('baseFloor');
-    const base = `壁: ${wallSelect.options[wallSelect.selectedIndex].text}, 天井: ${ceilingSelect.options[ceilingSelect.selectedIndex].text}, 床: ${floorSelect.options[floorSelect.selectedIndex].text}`;
-    let productList = "";
-    for (let i = 0; i < 3; i++) {
-        const spec = selectedSpecs[i];
-        const qty = parseInt(document.getElementById(`qty_${i}`).value) || 0;
-        if (spec.category && spec.model && spec.thick && spec.size && qty > 0) {
-            productList += `・${SOUNDBOX_DB.products[spec.category].models[spec.model].n} / ${spec.thick}mm / ${spec.size} × ${qty}枚\n`;
-        }
+    const w=document.getElementById('w').value, d=document.getElementById('d').value, h=document.getElementById('h').value;
+    const size=`${w}m × ${d}m × ${h}m`;
+    const wallSelect=document.getElementById('baseWall'), ceilingSelect=document.getElementById('baseCeiling'), floorSelect=document.getElementById('baseFloor');
+    const base=`壁: ${wallSelect.options[wallSelect.selectedIndex].text}, 天井: ${ceilingSelect.options[ceilingSelect.selectedIndex].text}, 床: ${floorSelect.options[floorSelect.selectedIndex].text}`;
+    let productList="";
+    for (let i=0;i<3;i++) {
+        const spec=selectedSpecs[i], qty=parseInt(document.getElementById(`qty_${i}`).value)||0;
+        if(spec.category&&spec.model&&spec.thick&&spec.size&&qty>0)
+            productList+=`・${SOUNDBOX_DB.products[spec.category].models[spec.model].n} / ${spec.thick}mm / ${spec.size} × ${qty}枚\n`;
     }
-    if (!productList) productList = "選択なし";
-    const rtText = document.getElementById('postRT_Avg').textContent;
-    const params = new URLSearchParams();
-    params.append("usp", "pp_url");
-    params.append("entry.1871431492", app);
-    params.append("entry.1902994140", size);
-    params.append("entry.779901469", base);
-    params.append("entry.364281805", productList);
-    params.append("entry.1449240528", rtText);
-    window.open(`${formUrl}?${params.toString()}`, '_blank');
+    if(!productList) productList="選択なし";
+    const rtText=document.getElementById('postRT_Avg').textContent;
+    const params=new URLSearchParams();
+    params.append("usp","pp_url");
+    params.append("entry.1871431492",app);
+    params.append("entry.1902994140",size);
+    params.append("entry.779901469",base);
+    params.append("entry.364281805",productList);
+    params.append("entry.1449240528",rtText);
+    window.open(`${formUrl}?${params.toString()}`,'_blank');
 }
 
 function updateChart(rt_before, rt_after, targetRT) {
     const ctx = document.getElementById('rtChart').getContext('2d');
     if (chart) chart.destroy();
 
-    // null点をプロット可能な形に変換（Chart.js spanGaps用）
-    // nullのままだとラインが途切れるだけでN/Aが判別できないため
-    // 各データセットにnullインデックスを記録し、ポイントスタイルで×表示
-    function makePointStyles(data, normalStyle, normalRadius) {
-        return data.map(v => v === null ? 'crossRot' : normalStyle);
-    }
-    function makePointRadii(data, normalRadius) {
-        return data.map(v => v === null ? 7 : normalRadius);
-    }
-    function makePointColors(data, normalColor) {
-        return data.map(v => v === null ? '#ff7b72' : normalColor);
-    }
-    // null値を直前の有効値で埋めてラインを繋ぐ（×マーク位置にプレースホルダー）
+    function makePointStyles(data) { return data.map(v => v===null ? 'crossRot' : 'circle'); }
+    function makePointRadii(data, r)  { return data.map(v => v===null ? 7 : r); }
+    function makePointColors(data, c) { return data.map(v => v===null ? '#ff7b72' : c); }
     function fillNullForPlot(data) {
-        return data.map((v, i) => {
-            if (v !== null) return v;
-            // 前後の有効値の平均をプレースホルダーとして使用（表示用のみ）
-            const prev = data.slice(0, i).reverse().find(x => x !== null);
-            const next = data.slice(i+1).find(x => x !== null);
-            if (prev !== null && next !== null) return (prev + next) / 2;
-            return prev !== null ? prev : (next !== null ? next : 0);
+        return data.map((v,i)=>{
+            if(v!==null) return v;
+            const prev=data.slice(0,i).reverse().find(x=>x!==null);
+            const next=data.slice(i+1).find(x=>x!==null);
+            if(prev!==null&&next!==null) return (prev+next)/2;
+            return prev!==null?prev:(next!==null?next:0);
         });
     }
 
@@ -2782,18 +1776,18 @@ function updateChart(rt_before, rt_after, targetRT) {
             datasets: [
                 {
                     label: '現状 (Before)', data: beforePlot, spanGaps: true,
-                    borderColor: '#8b949e', backgroundColor: 'rgba(139, 148, 158, 0.05)',
-                    borderDash: [5, 5], borderWidth: 2, fill: false, tension: 0.3,
-                    pointStyle: makePointStyles(rt_before, 'circle', 4),
+                    borderColor: '#8b949e', backgroundColor: 'rgba(139,148,158,0.05)',
+                    borderDash: [5,5], borderWidth: 2, fill: false, tension: 0.3,
+                    pointStyle: makePointStyles(rt_before),
                     pointRadius: makePointRadii(rt_before, 4),
                     pointBackgroundColor: makePointColors(rt_before, '#8b949e'),
                     pointBorderColor: makePointColors(rt_before, '#8b949e')
                 },
                 {
                     label: '対策後 (After)', data: afterPlot, spanGaps: true,
-                    borderColor: '#39d353', backgroundColor: 'rgba(57, 211, 83, 0.1)',
+                    borderColor: '#39d353', backgroundColor: 'rgba(57,211,83,0.1)',
                     borderWidth: 3, fill: true, tension: 0.3,
-                    pointStyle: makePointStyles(rt_after, 'circle', 5),
+                    pointStyle: makePointStyles(rt_after),
                     pointRadius: makePointRadii(rt_after, 5),
                     pointBackgroundColor: makePointColors(rt_after, '#39d353'),
                     pointBorderColor: makePointColors(rt_after, '#fff'),
@@ -2801,49 +1795,41 @@ function updateChart(rt_before, rt_after, targetRT) {
                 },
                 {
                     label: '目標値', data: FREQS.map(() => targetRT),
-                    borderColor: '#388bfd', backgroundColor: 'rgba(56, 139, 253, 0.05)',
-                    borderWidth: 2, borderDash: [10, 5], fill: false, pointRadius: 0
+                    borderColor: '#388bfd', backgroundColor: 'rgba(56,139,253,0.05)',
+                    borderWidth: 2, borderDash: [10,5], fill: false, pointRadius: 0
                 }
             ]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            spanGaps: true,
+            responsive: true, maintainAspectRatio: false, spanGaps: true,
             interaction: { mode: 'index', intersect: false },
             scales: {
-                y: { min: 0, max: 2.5, grid: { color: '#30363d', lineWidth: 1 }, ticks: { color: '#8b949e', font: { size: 11 }, callback: v => v.toFixed(1) + 's' }, title: { display: true, text: 'RT60 (sec)', color: '#8b949e', font: { size: 12, weight: 'bold' } } },
-                x: { grid: { color: '#30363d', lineWidth: 1 }, ticks: { color: '#8b949e', font: { size: 11 } } }
+                y: { min: 0, max: 2.5, grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 }, callback: v => v.toFixed(1)+'s' }, title: { display: true, text: 'RT60 (sec)', color: '#8b949e', font: { size: 12, weight: 'bold' } } },
+                x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 } } }
             },
             plugins: {
                 legend: {
                     display: true, position: 'top',
                     labels: {
-                        color: '#e6edf3', font: { size: 11 }, padding: 15,
-                        usePointStyle: true,
+                        color: '#e6edf3', font: { size: 11 }, padding: 15, usePointStyle: true,
                         generateLabels: function(chart) {
-                            // 凡例アイコンは常に●固定（データ点の×とは独立）
                             const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                             orig.forEach(item => { item.pointStyle = 'circle'; });
                             return orig;
                         }
-                    },
-                    // N/A注記をグラフ下に追加するためのafterFitは不要（ツールチップで補完）
+                    }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(22, 27, 34, 0.95)', titleColor: '#e6edf3',
-                    bodyColor: '#e6edf3', borderColor: '#30363d', borderWidth: 1, padding: 10,
+                    backgroundColor: 'rgba(22,27,34,0.95)', titleColor: '#e6edf3', bodyColor: '#e6edf3',
+                    borderColor: '#30363d', borderWidth: 1, padding: 10,
                     callbacks: {
                         label: function(ctx) {
                             if (ctx.datasetIndex === 2) return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + 's';
                             const raw = ctx.datasetIndex === 0 ? rt_before[ctx.dataIndex] : rt_after[ctx.dataIndex];
                             if (raw === null) return ctx.dataset.label + ': N/A（測定不可）';
-                            // バンドインデックスはFREQS配列のインデックスと対応
                             const bi = ctx.dataIndex;
-                            const method = window._measurementMethod && window._r2Results ? '' : '';
-                            const r2 = (window._r2Results && window._r2Results[bi] != null)
-                                ? window._r2Results[bi] : null;
-                            const meth = (window._methodResultsAll && window._methodResultsAll[bi])
-                                ? window._methodResultsAll[bi] : null;
+                            const r2   = (window._r2Results && window._r2Results[bi] != null) ? window._r2Results[bi] : null;
+                            const meth = (window._methodResultsAll && window._methodResultsAll[bi]) ? window._methodResultsAll[bi] : null;
                             let suffix = '';
                             if (meth && r2 != null) suffix = ' (' + meth + ', R²=' + r2.toFixed(2) + ')';
                             else if (meth) suffix = ' (' + meth + ')';
@@ -2856,6 +1842,5 @@ function updateChart(rt_before, rt_after, targetRT) {
     });
 }
 </script>
-
 </body>
 </html>
