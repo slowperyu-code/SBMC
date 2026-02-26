@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <link rel="canonical" href="https://soundbox.altwaves.co.jp/">
-    <meta name="description" content="Soundbox Engine v7.0 (Rev 1.2): Honest Measurement — No Sabine Extrapolation">
+    <meta name="description" content="Soundbox Engine v7.0 (Rev 1.5): Honest Measurement — No Sabine Extrapolation">
     <title>Soundbox Material Calculator v7 | プロフェッショナル調音設計ツール</title>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -127,7 +127,7 @@
                 <button class="btn-base btn-estimate" onclick="sendToGoogleForm()">この内容で見積もり依頼</button>
             </div>
         </div>
-        <div class="subtitle">Soundbox Engine v7.0 (Rev 1.2): Honest Measurement — No Sabine Extrapolation</div>
+        <div class="subtitle">Soundbox Engine v7.0 (Rev 1.5): Honest Measurement — No Sabine Extrapolation</div>
         <div class="logic-note">Hybrid Calculation Engine Active</div>
     </div>
 
@@ -220,9 +220,15 @@
     <div class="grid-3">
         <div><label>天井仕上げ</label><select id="baseCeiling"></select></div>
         <div><label>床仕上げ</label><select id="baseFloor"></select></div>
-        <div style="display:flex; align-items:flex-end; padding-bottom:5px;">
-            <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px;">
-            <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">開口部(窓等)を考慮する</label>
+        <div style="display:flex; align-items:flex-end; padding-bottom:5px; gap:20px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center;">
+                <input type="checkbox" id="showSpecial" style="width:16px; margin-right:8px;">
+                <label for="showSpecial" style="margin:0; cursor:pointer; color:var(--accent);">開口部(窓等)を考慮する</label>
+            </div>
+            <div style="display:flex; align-items:center;">
+                <input type="checkbox" id="excludeFloor" checked style="width:16px; margin-right:8px;">
+                <label for="excludeFloor" style="margin:0; cursor:pointer; color:var(--dim);">床面を対象外にする</label>
+            </div>
         </div>
     </div>
     <div id="specialPanel" style="display:none; background: rgba(56, 139, 253, 0.05); padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px dashed var(--accent);">
@@ -481,6 +487,7 @@ function init() {
         document.getElementById('specialPanel').style.display = this.checked ? 'block' : 'none';
         calculate();
     });
+    document.getElementById('excludeFloor').addEventListener('change', calculate);
     calculate();
 }
 
@@ -788,14 +795,14 @@ function calculate() {
     const measuredBandCount = (currentMode === 'measure' && measurementData)
         ? measurementData.filter(v => v !== null).length : null;
 
-    // ── パネル面積集計（吸音 / 拡散 分離）+ DCI計算 + N/A判定フラグ ──
+    // ── パネル面積集計（吸音 / 拡散 分離）+ s̄計算 + N/A判定フラグ ──
     let totalPanelM2     = 0;
     let diffusionPanelM2 = 0;
     let scPanelM2        = 0;  // sc搭載製品の合計面積（N/A判定用）
 
-    // DCI: Diffusion Contribution Index [0-100%] 6バンド
+    // s̄計算用分子: scフィールドを持つパネルのみ対象（6バンド）
     const BANDS = 6;
-    const dciNumerator = new Array(BANDS).fill(0);  // Σ(面積 × sc[b])
+    const scNumerator = new Array(BANDS).fill(0);  // Σ(面積 × sc[b])  s̄計算用
 
     for (let panelIdx = 0; panelIdx < 3; panelIdx++) {
         const spec = selectedSpecs[panelIdx];
@@ -808,10 +815,10 @@ function calculate() {
             if (DIFFUSION_CATS.includes(spec.category)) {
                 diffusionPanelM2 += panelM2;
             }
-            // sc配列を持つ製品のみDCI集計・N/A判定対象
+            // sc配列を持つ製品のみs̄集計・N/A判定対象
             if (model.sc && Array.isArray(model.sc) && unitArea > 0) {
                 for (let b = 0; b < BANDS; b++) {
-                    dciNumerator[b] += (model.sc[b] || 0) * panelM2;
+                    scNumerator[b] += (model.sc[b] || 0) * panelM2;
                 }
                 scPanelM2 += panelM2;
             }
@@ -821,11 +828,11 @@ function calculate() {
         }
     }
 
-    // usableSurface は後続で定義されるため、DCI配列はnumeratorのみ保持し
-    // updateUI内で除算・クランプする（usableSurface依存のため）
-    const hasDci = scPanelM2 > 0;
+    // s̄の分子のみここで保持。S_totalはupdateUIに引数渡しして除算する
+    const hasSc = scPanelM2 > 0;
 
-    const usableSurface = S_wall * 0.8;
+    const excludeFloor  = document.getElementById('excludeFloor').checked;
+    const usableSurface = excludeFloor ? (S_wall + S_ceiling) : S_total;  // 床除外ON: 壁+天井 / OFF: 全6面
 
     // ── Schroeder周波数計算 ──
     // fg = 2000 × √(T60 / V)  [Hz]
@@ -842,7 +849,7 @@ function calculate() {
     updateUI(rt_before, rt_after, avgRT_before, avgRT_after, targetRT, targetObj,
              achievementRate, totalPanelM2, usableSurface, V,
              diffusionIndicator, measuredBandCount, fg, diffCoverageRate,
-             dciNumerator, hasDci, scPanelM2);
+             scNumerator, hasSc, scPanelM2, S_total);
 }
 
 // ─────────────────────────────────────────────────────
@@ -852,7 +859,7 @@ function calculate() {
 function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
                   achievementRate, totalPanelM2, usableSurface, V,
                   diffusionIndicator, measuredBandCount, fg, diffCoverageRate,
-                  dciNumerator, hasDci, scPanelM2) {
+                  scNumerator, hasSc, scPanelM2, S_total) {
 
     // ── N/A制御フラグ ──
     // sc搭載製品(DIFFUSION/HYBRID)が面積超過に関与 → 両カードN/A
@@ -861,11 +868,11 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
     const naMiddle      = isOverLimit;                        // 常に中央カードN/A
     const naRight       = isOverLimit && scPanelM2 > 0;      // sc製品が混在時のみ右カードN/A
 
-    // ── DCI計算（usableSurfaceが確定したここで実施）──
-    // dci[b] = min(Σ(面積×sc[b]) / (usableSurface × 0.3), 1.0) × 100 [%]
-    const dciBase = usableSurface * 0.3;
-    const dci = hasDci && dciBase > 0
-        ? dciNumerator.map(v => Math.min(v / dciBase, 1.0) * 100)
+    // ── s̄（室平均散乱係数）計算 ──
+    // s̄[b] = Σ(面積×sc[b]) / S_total  [0〜1]
+    // 正規化基準: 部屋の全表面積（ISO 17497-1準拠スケール）
+    const sBar = hasSc && S_total > 0
+        ? scNumerator.map(v => Math.round(v / S_total * 1000) / 1000)
         : null;
 
     // ── 平均RT60表示 ──
@@ -898,12 +905,8 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
         document.getElementById('diffusionBalance').innerHTML =
             `<span style="color:var(--danger); font-weight:bold;">拡散カバレッジ: N/A</span>`;
     } else if (hasDiffusionPanels) {
-        let coverageColor;
-        if      (diffCoverageRate >= 30) coverageColor = 'var(--success)';
-        else if (diffCoverageRate >= 15) coverageColor = 'var(--warning)';
-        else                             coverageColor = 'var(--caution)';
         document.getElementById('diffusionBalance').innerHTML =
-            `拡散カバレッジ: <span style="color:${coverageColor}; font-weight:bold;">${diffCoverageRate.toFixed(0)}%</span>`;
+            `拡散カバレッジ: <span style="color:var(--accent); font-weight:bold;">${diffCoverageRate.toFixed(0)}%</span>`;
     } else {
         document.getElementById('diffusionBalance').innerHTML =
             `<span style="color:var(--dim);">拡散カバレッジ: —</span>`;
@@ -939,41 +942,37 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
         adviceHeader.textContent = 'FAIL';
         adviceHeader.style.background = adviceTagColor;
         if (naRight) {
-            adviceText = `有効壁面積（${usableSurface.toFixed(1)}㎡）を超えるパネルが設定されています。吸音・拡散両方の評価が無効です。パネル枚数を減らしてください。`;
+            adviceText = `有効面積（${usableSurface.toFixed(1)}㎡）を超えるパネルが設定されています。吸音・拡散両方の評価が無効です。パネル枚数を減らしてください。`;
         } else {
-            adviceText = `吸音パネルの合計面積が有効壁面積（${usableSurface.toFixed(1)}㎡）を超えています。吸音評価が無効です。パネル枚数を減らしてください。`;
+            adviceText = `吸音パネルの合計面積が有効面積（${usableSurface.toFixed(1)}㎡）を超えています。吸音評価が無効です。パネル枚数を減らしてください。`;
         }
     } else if (achievementRate >= 120) {
         // OVER（デッド）
         status = '響きが少ない'; statusColor = 'var(--caution)'; adviceTagColor = '#f0883e'; score = 120;
         adviceHeader.textContent = 'OVER'; adviceHeader.style.background = adviceTagColor;
-        adviceText = '空間がデッド過ぎる傾向にあります。';
+        adviceText = '空間がデッド過ぎる傾向にあります。吸音パネルのさらなる追加は推奨しません。';
         if (!hasDiffusionPanels) {
-            adviceText += '吸音パネルのさらなる追加より、<strong>拡散パネルの導入</strong>を優先して検討してください。';
-        } else if (diffCoverageRate < 15) {
-            adviceText += '吸音パネルの追加よりも<strong>拡散パネルを優先して追加</strong>してください（現在の拡散カバレッジ: ' + diffCoverageRate.toFixed(0) + '%）。';
-        } else if (diffCoverageRate < 30) {
-            adviceText += '拡散パネルをさらに追加して音場の均一性を高めることを推奨します（現在: ' + diffCoverageRate.toFixed(0) + '%、目標: 30%以上）。';
+            adviceText += '拡散パネルを導入することで、残響感を損なわずに音場の均一性を改善できる可能性があります。';
         } else {
-            adviceText += '拡散カバレッジは十分です（' + diffCoverageRate.toFixed(0) + '%）。配置バランスの見直しを検討してください。';
+            adviceText += '現在の拡散面構成（カバレッジ: ' + diffCoverageRate.toFixed(0) + '%）で音場の均一性が得られています。グラフの室平均散乱係数 s̄を参考に、帯域ごとの散乱特性を確認してください。';
         }
     } else if (achievementRate >= 100) {
         // IDEAL
         status = '理想的'; statusColor = 'var(--success)'; adviceTagColor = '#39d353'; score = 100;
         adviceHeader.textContent = 'IDEAL'; adviceHeader.style.background = adviceTagColor;
         adviceText = '目標の残響時間を達成しています。';
-        if (hasDiffusionPanels && diffCoverageRate < 15) {
-            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散改善の余地あり</strong><br>残響時間は適切ですが、拡散面が不足しています（' + diffCoverageRate.toFixed(0) + '%）。拡散パネルの追加で音場の均一性が向上します。';
-        } else if (!hasDiffusionPanels) {
-            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散パネルも検討してみてください</strong><br>残響時間は達成済みです。拡散パネルを追加することで、より均一な音場を実現できます。';
+        if (hasDiffusionPanels) {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散構成について</strong><br>拡散パネルが追加されています（カバレッジ: ' + diffCoverageRate.toFixed(0) + '%）。グラフの室平均散乱係数 s̄で帯域ごとの散乱特性を確認できます。配置を変えることで音場の均一性をさらに調整できます。';
+        } else {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散パネルについて</strong><br>残響時間は目標を達成しています。拡散パネルを追加すると音場の均一性が変化します。グラフで帯域ごとの変化を確認できます。';
         }
     } else if (achievementRate >= 80) {
         // GOOD
         status = '実用レベル'; statusColor = 'var(--accent)'; adviceTagColor = '#388bfd'; score = 80;
         adviceHeader.textContent = 'GOOD'; adviceHeader.style.background = adviceTagColor;
         adviceText = '実用上十分な導入効果です。低域の制御には厚型を検討してください。';
-        if (hasDiffusionPanels && diffCoverageRate < 15) {
-            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散改善の余地あり</strong><br>拡散パネルの追加（目標: 30%以上）で音場品質をさらに向上できます（現在: ' + diffCoverageRate.toFixed(0) + '%）。';
+        if (hasDiffusionPanels) {
+            adviceText += '<br><br><strong style="color:var(--accent);">💡 拡散構成について</strong><br>拡散パネルが追加されています（カバレッジ: ' + diffCoverageRate.toFixed(0) + '%）。グラフの室平均散乱係数 s̄で帯域ごとの散乱特性を確認できます。';
         }
     } else {
         // UNDER（吸音不足）
@@ -1006,7 +1005,7 @@ function updateUI(rt_before, rt_after, avgBefore, avgAfter, targetRT, targetObj,
     }
 
     detailedNote.innerHTML = adviceText;
-    updateChart(rt_before, rt_after, targetRT, dci);
+    updateChart(rt_before, rt_after, targetRT, sBar);
     lastData = { rt_after: avgAfter, rt_before: avgBefore, targetRT, achievementRate, totalPanelM2, V, status };
 }
 
@@ -1797,9 +1796,10 @@ function sendToGoogleForm() {
     window.open(`${formUrl}?${params.toString()}`,'_blank');
 }
 
-// updateChart() — Rev 1.2
-// 第2Y軸: 拡散寄与度 DCI（0〜100%）/ dciがnullの場合は曲線非表示
+// updateChart() — Rev 1.4
+// 第2Y軸: 室平均散乱係数 s̄（0〜0.5固定）/ sBarがnullの場合は曲線非表示
 function updateChart(rt_before, rt_after, targetRT, dci) {
+    const sBar = dci;  // 引数名は互換性のため維持、実体はs̄
     const ctx = document.getElementById('rtChart').getContext('2d');
     if (chart) chart.destroy();
 
@@ -1818,7 +1818,7 @@ function updateChart(rt_before, rt_after, targetRT, dci) {
 
     const beforePlot = fillNullForPlot(rt_before);
     const afterPlot  = fillNullForPlot(rt_after);
-    const hasDci     = dci !== null;
+    const hasSBar    = sBar !== null;
 
     const datasets = [
         {
@@ -1850,11 +1850,11 @@ function updateChart(rt_before, rt_after, targetRT, dci) {
         }
     ];
 
-    if (hasDci) {
+    if (hasSBar) {
         datasets.push({
-            label: '拡散寄与度 (%)',
-            data: dci.map(v => Math.round(v * 10) / 10),
-            yAxisID: 'ydci',
+            label: '室平均散乱係数 s̄',
+            data: sBar,
+            yAxisID: 'ysbar',
             borderColor: '#e3b341',
             backgroundColor: 'rgba(227,179,65,0.08)',
             borderWidth: 2, borderDash: [4,3], fill: false, tension: 0.3,
@@ -1873,12 +1873,12 @@ function updateChart(rt_before, rt_after, targetRT, dci) {
         },
         x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 } } }
     };
-    if (hasDci) {
-        scales.ydci = {
-            min: 0, max: 100, position: 'right',
+    if (hasSBar) {
+        scales.ysbar = {
+            min: 0, max: 0.5, position: 'right',
             grid: { drawOnChartArea: false },
-            ticks: { color: '#e3b341', font: { size: 10 }, callback: v => v + '%' },
-            title: { display: true, text: '拡散寄与度 (%)', color: '#e3b341', font: { size: 11, weight: 'bold' } }
+            ticks: { color: '#e3b341', font: { size: 10 }, callback: v => v.toFixed(2) },
+            title: { display: true, text: '散乱係数 s̄', color: '#e3b341', font: { size: 11, weight: 'bold' } }
         };
     }
 
@@ -1906,8 +1906,8 @@ function updateChart(rt_before, rt_after, targetRT, dci) {
                     borderColor: '#30363d', borderWidth: 1, padding: 10,
                     callbacks: {
                         label: function(ctx) {
-                            if (ctx.dataset.yAxisID === 'ydci') {
-                                return `拡散寄与度: ${ctx.parsed.y.toFixed(1)}%  ※有効壁面積×30%を100%とした指標`;
+                            if (ctx.dataset.yAxisID === 'ysbar') {
+                                return `室平均散乱係数 s̄: ${ctx.parsed.y.toFixed(3)}  ※部屋全表面積に対する面積加重平均（ISO 17497-1準拠スケール）`;
                             }
                             if (ctx.datasetIndex === 2) return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + 's';
                             const raw = ctx.datasetIndex === 0 ? rt_before[ctx.dataIndex] : rt_after[ctx.dataIndex];
@@ -1926,141 +1926,7 @@ function updateChart(rt_before, rt_after, targetRT, dci) {
         }
     });
 }
-    const ctx = document.getElementById('rtChart').getContext('2d');
-    if (chart) chart.destroy();
 
-    function makePointStyles(data) { return data.map(v => v===null ? 'crossRot' : 'circle'); }
-    function makePointRadii(data, r)  { return data.map(v => v===null ? 7 : r); }
-    function makePointColors(data, c) { return data.map(v => v===null ? '#ff7b72' : c); }
-    function fillNullForPlot(data) {
-        return data.map((v,i)=>{
-            if(v!==null) return v;
-            const prev=data.slice(0,i).reverse().find(x=>x!==null);
-            const next=data.slice(i+1).find(x=>x!==null);
-            if(prev!==null&&next!==null) return (prev+next)/2;
-            return prev!==null?prev:(next!==null?next:0);
-        });
-    }
-
-    const beforePlot = fillNullForPlot(rt_before);
-    const afterPlot  = fillNullForPlot(rt_after);
-    const hasScData  = scAvg !== null;
-
-    // datasets構築
-    const datasets = [
-        {
-            label: '現状 (Before)', data: beforePlot, spanGaps: true,
-            yAxisID: 'y',
-            borderColor: '#8b949e', backgroundColor: 'rgba(139,148,158,0.05)',
-            borderDash: [5,5], borderWidth: 2, fill: false, tension: 0.3,
-            pointStyle: makePointStyles(rt_before),
-            pointRadius: makePointRadii(rt_before, 4),
-            pointBackgroundColor: makePointColors(rt_before, '#8b949e'),
-            pointBorderColor: makePointColors(rt_before, '#8b949e')
-        },
-        {
-            label: '対策後 (After)', data: afterPlot, spanGaps: true,
-            yAxisID: 'y',
-            borderColor: '#39d353', backgroundColor: 'rgba(57,211,83,0.1)',
-            borderWidth: 3, fill: true, tension: 0.3,
-            pointStyle: makePointStyles(rt_after),
-            pointRadius: makePointRadii(rt_after, 5),
-            pointBackgroundColor: makePointColors(rt_after, '#39d353'),
-            pointBorderColor: makePointColors(rt_after, '#fff'),
-            pointBorderWidth: 2
-        },
-        {
-            label: '目標値', data: FREQS.map(() => targetRT),
-            yAxisID: 'y',
-            borderColor: '#388bfd', backgroundColor: 'rgba(56,139,253,0.05)',
-            borderWidth: 2, borderDash: [10,5], fill: false, pointRadius: 0
-        }
-    ];
-
-    // scAvgがある場合のみ散乱係数曲線を追加
-    if (hasScData) {
-        datasets.push({
-            label: '散乱係数 s（参照）', data: scAvg,
-            yAxisID: 'ysc',
-            borderColor: '#e3b341', backgroundColor: 'rgba(227,179,65,0.08)',
-            borderWidth: 2, borderDash: [4,3], fill: false, tension: 0.3,
-            pointRadius: 4,
-            pointBackgroundColor: '#e3b341',
-            pointBorderColor: '#e3b341'
-        });
-    }
-
-    // scales構築（scAvgがある場合のみ右Y軸を追加）
-    const scales = {
-        y: {
-            min: 0, max: 2.5,
-            position: 'left',
-            grid: { color: '#30363d' },
-            ticks: { color: '#8b949e', font: { size: 11 }, callback: v => v.toFixed(1)+'s' },
-            title: { display: true, text: 'RT60 (sec)', color: '#8b949e', font: { size: 12, weight: 'bold' } }
-        },
-        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', font: { size: 11 } } }
-    };
-    if (hasScData) {
-        scales.ysc = {
-            min: 0, max: 1.0,
-            position: 'right',
-            grid: { drawOnChartArea: false },
-            ticks: {
-                color: '#e3b341', font: { size: 10 },
-                callback: v => v.toFixed(1)
-            },
-            title: { display: true, text: '散乱係数 s', color: '#e3b341', font: { size: 11, weight: 'bold' } }
-        };
-    }
-
-    chart = new Chart(ctx, {
-        type: 'line',
-        data: { labels: FREQS.map(f => f + 'Hz'), datasets },
-        options: {
-            responsive: true, maintainAspectRatio: false, spanGaps: true,
-            interaction: { mode: 'index', intersect: false },
-            scales,
-            plugins: {
-                legend: {
-                    display: true, position: 'top',
-                    labels: {
-                        color: '#e6edf3', font: { size: 11 }, padding: 15, usePointStyle: true,
-                        generateLabels: function(chart) {
-                            const orig = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-                            orig.forEach(item => { item.pointStyle = 'circle'; });
-                            return orig;
-                        }
-                    }
-                },
-                tooltip: {
-                    backgroundColor: 'rgba(22,27,34,0.95)', titleColor: '#e6edf3', bodyColor: '#e6edf3',
-                    borderColor: '#30363d', borderWidth: 1, padding: 10,
-                    callbacks: {
-                        label: function(ctx) {
-                            // 散乱係数曲線
-                            if (ctx.dataset.yAxisID === 'ysc') {
-                                return '散乱係数 s（参照）: ' + ctx.parsed.y.toFixed(2) + '  ※RT60とは独立した指標';
-                            }
-                            // 目標値
-                            if (ctx.datasetIndex === 2) return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + 's';
-                            // Before / After
-                            const raw = ctx.datasetIndex === 0 ? rt_before[ctx.dataIndex] : rt_after[ctx.dataIndex];
-                            if (raw === null) return ctx.dataset.label + ': N/A（測定不可）';
-                            const bi = ctx.dataIndex;
-                            const r2   = (window._r2Results && window._r2Results[bi] != null) ? window._r2Results[bi] : null;
-                            const meth = (window._methodResultsAll && window._methodResultsAll[bi]) ? window._methodResultsAll[bi] : null;
-                            let suffix = '';
-                            if (meth && r2 != null) suffix = ' (' + meth + ', R²=' + r2.toFixed(2) + ')';
-                            else if (meth) suffix = ' (' + meth + ')';
-                            return ctx.dataset.label + ': ' + raw.toFixed(2) + 's' + suffix;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
 </script>
 </body>
 </html>
